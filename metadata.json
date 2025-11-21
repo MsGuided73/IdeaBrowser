@@ -1,0 +1,8 @@
+{
+  "name": "IdeaBrowser - AI Trend Hunter",
+  "description": "Daily business ideas powered by real-time market trends and Gemini AI.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
