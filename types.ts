@@ -1,4 +1,6 @@
 
+import React from 'react';
+
 export interface TrendPoint {
   date: string;
   value: number;
@@ -66,11 +68,19 @@ export interface DraftIdea {
   icon?: React.ReactNode;
 }
 
+export interface Connection {
+  id: string;
+  from: string;
+  to: string;
+}
+
 export interface WhiteboardNode {
   id: string;
-  type: 'text' | 'image' | 'video' | 'audio' | 'link' | 'pdf' | 'youtube';
+  type: 'text' | 'image' | 'video' | 'audio' | 'link' | 'pdf' | 'youtube' | 'ai-partner';
   content: string; // text content or base64 data string or url
   position: { x: number; y: number };
+  width?: number;
+  height?: number;
   title: string;
   mimeType?: string; // for files
   fileName?: string;
