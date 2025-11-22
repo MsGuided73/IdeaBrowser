@@ -1,16 +1,26 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { 
     Image as ImageIcon, Video, FileText, Mic, Link as LinkIcon, 
     Youtube, Move, X, Plus, MessageSquare, Sparkles, Send, 
     Maximize2, Trash2, Play, FileType, Loader2, Instagram, Square, Smartphone,
-    GripHorizontal, ChevronRight, Bot, Cable
+    GripHorizontal, ChevronRight, Bot, Cable, Copy, Download, Check, Subtitles,
+    Eye
 } from 'lucide-react';
 import { WhiteboardNode, Connection } from '../types';
 import { Chat } from '@google/genai';
 import { createWhiteboardChatSession, convertNodesToParts } from '../services/geminiService';
 
 const PREVIEW_LIMIT_CHARS = 150;
+
+// Helper to extract YouTube ID
+const getYoutubeId = (url: string) => {
+    if (!url) return null;
+    // Expanded regex to handle shorts and looser matching
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?\/]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2]) ? match[2] : null;
+};
 
 // Custom TikTok Icon
 const TikTokIcon = ({ size = 14, className = "" }: { size?: number, className?: string }) => (
@@ -40,6 +50,7 @@ export const Whiteboard: React.FC = () => {
     const [activeAiNodeId, setActiveAiNodeId] = useState<string | null>(null);
     const [chats, setChats] = useState<Record<string, ChatMessage[]>>({});
     const chatSessionsRef = useRef<Record<string, Chat | null>>({});
+    const [copiedState, setCopiedState] = useState<number | null>(null); // Index of copied message
     
     const [isRecording, setIsRecording] = useState(false);
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -52,6 +63,9 @@ export const Whiteboard: React.FC = () => {
     const canvasRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // Derived state to check if user is interacting (dragging/resizing/connecting)
+    const isInteracting = !!draggedNodeId || !!resizingNodeId || !!connectingFromId;
+
     // Scroll chat to bottom when chat history changes
     useEffect(() => {
         if (chatEndRef.current && activeAiNodeId) {
@@ -61,12 +75,14 @@ export const Whiteboard: React.FC = () => {
 
     // --- Node Management ---
 
-    const addNode = (node: WhiteboardNode) => {
+    const addNode = useCallback((node: WhiteboardNode) => {
         const defaultDims = {
             width: node.type === 'text' ? 300 : 
-                   node.type === 'ai-partner' ? 280 : 320,
+                   node.type === 'ai-partner' ? 280 : 
+                   node.type === 'youtube' ? 400 : 320,
             height: node.type === 'text' ? 220 : 
-                    node.type === 'ai-partner' ? 180 : 300
+                    node.type === 'ai-partner' ? 180 : 
+                    node.type === 'youtube' ? 300 : 300
         };
         const newNode = { ...defaultDims, ...node };
         setNodes(prev => [...prev, newNode]);
@@ -74,11 +90,11 @@ export const Whiteboard: React.FC = () => {
         if (node.type === 'ai-partner') {
             setChats(prev => ({
                 ...prev,
-                [newNode.id]: [{ role: 'model', text: "Hello! Connect source nodes to me, and I'll use them as my knowledge base." }]
+                [newNode.id]: [{ role: 'model', text: "Hello! Connect video, images, or text nodes to me. I can watch uploaded videos and analyze them visually." }]
             }));
             setActiveAiNodeId(newNode.id);
         }
-    };
+    }, []);
 
     const removeNode = (id: string) => {
         setNodes(prev => prev.filter(n => n.id !== id));
@@ -93,6 +109,54 @@ export const Whiteboard: React.FC = () => {
         setChats(newChats);
         delete chatSessionsRef.current[id];
     };
+
+    // --- Global Paste Handler ---
+    useEffect(() => {
+        const handlePaste = (e: ClipboardEvent) => {
+            const target = e.target as HTMLElement;
+            // Don't intercept paste if user is typing in an input
+            if (target.tagName === 'TEXTAREA' || target.tagName === 'INPUT') return;
+
+            const text = e.clipboardData?.getData('text');
+            if (!text) return;
+
+            // Basic URL detection
+            const isUrl = /^(http|https):\/\/[^ "]+$/.test(text.trim());
+            
+            if (isUrl) {
+                e.preventDefault();
+                const x = window.innerWidth / 2 - 200 + (Math.random() * 50);
+                const y = window.innerHeight / 2 - 150 + (Math.random() * 50);
+                
+                const url = text.trim();
+                let type: WhiteboardNode['type'] = 'link';
+                let title = 'Link';
+
+                if (url.includes('youtube.com') || url.includes('youtu.be')) {
+                    type = 'youtube';
+                    title = 'Youtube Video';
+                } else if (url.includes('tiktok.com')) {
+                    type = 'link';
+                    title = 'TikTok';
+                } else if (url.includes('instagram.com')) {
+                    type = 'link';
+                    title = 'IG Reel';
+                }
+
+                addNode({
+                    id: Date.now().toString(),
+                    type,
+                    content: url,
+                    position: { x, y },
+                    title
+                });
+            }
+        };
+
+        window.addEventListener('paste', handlePaste);
+        return () => window.removeEventListener('paste', handlePaste);
+    }, [addNode]);
+
 
     // --- Voice Recording ---
     const toggleRecording = async () => {
@@ -248,7 +312,7 @@ export const Whiteboard: React.FC = () => {
     };
 
     // Start Connection Drag
-    const handleMouseDownHandle = (e: React.MouseEvent, id: string) => {
+    const handleMouseDownPort = (e: React.MouseEvent, id: string) => {
         e.stopPropagation();
         e.preventDefault();
         setConnectingFromId(id);
@@ -263,6 +327,7 @@ export const Whiteboard: React.FC = () => {
             );
             
             if (!exists) {
+                // Enforce direction: connectingFromId (Source/Output) -> targetId (Target/Input)
                 setConnections(prev => [...prev, {
                     id: Math.random().toString(36).substr(2, 9),
                     from: connectingFromId,
@@ -313,55 +378,66 @@ export const Whiteboard: React.FC = () => {
     };
 
     // --- Chat Logic ---
-    const handleSendMessage = async () => {
-        if (!activeAiNodeId || !inputMsg.trim()) return;
+    
+    const handleCopyToClipboard = (text: string, index: number) => {
+        navigator.clipboard.writeText(text);
+        setCopiedState(index);
+        setTimeout(() => setCopiedState(null), 2000);
+    };
+
+    const handleDownloadMarkdown = (text: string) => {
+        const blob = new Blob([text], { type: 'text/markdown' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `AI-Partner-Output-${Date.now()}.md`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    };
+
+    const handleSendMessage = async (textOverride?: string) => {
+        const textToSend = textOverride || inputMsg;
+        if (!activeAiNodeId || !textToSend.trim()) return;
         
-        const userText = inputMsg;
-        setInputMsg('');
+        // Clear input if not using override, or just clear it anyway to be safe
+        if (!textOverride) setInputMsg('');
         
         setChats(prev => ({
             ...prev,
-            [activeAiNodeId]: [...(prev[activeAiNodeId] || []), { role: 'user', text: userText }]
+            [activeAiNodeId]: [...(prev[activeAiNodeId] || []), { role: 'user', text: textToSend }]
         }));
         
         setIsChatLoading(true);
 
         try {
-            // 1. Identify connected nodes
-            const connectedNodeIds = connections
-                .filter(c => c.to === activeAiNodeId || c.from === activeAiNodeId)
-                .map(c => c.to === activeAiNodeId ? c.from : c.to);
+            // 1. Identify connected nodes (Sources feeding INTO this AI node)
+            // Logic: Connections where 'to' is the AI node.
+            const sourceNodeIds = connections
+                .filter(c => c.to === activeAiNodeId)
+                .map(c => c.from);
             
-            const contextNodes = nodes.filter(n => connectedNodeIds.includes(n.id));
+            const contextNodes = nodes.filter(n => sourceNodeIds.includes(n.id));
 
             // 2. Initialize or Reuse Session
             let session = chatSessionsRef.current[activeAiNodeId];
-            
-            // Always recreate session if context changed? 
-            // For simplicity in this demo, we create a fresh session context for each turn if we want to guarantee latest board state,
-            // OR we just send the context nodes as part of the message prompt.
-            // The SDK Chat object maintains history, so passing context every time might be redundant or confuse it.
-            // Strategy: Send context nodes manifest in the message if it's a new session, or just rely on the system instruction update? 
-            // Since createWhiteboardChatSession sets system instructions, let's create a new session if one doesn't exist.
             
             if (!session) {
                 session = createWhiteboardChatSession(contextNodes);
                 chatSessionsRef.current[activeAiNodeId] = session;
             }
 
-            // 3. Convert context nodes to parts for THIS specific message to ensure latest content is used
-            // We prepend the context to the message so the model "sees" the current state of connected nodes
+            // 3. Convert context nodes to parts for THIS specific message
             const contextParts = convertNodesToParts(contextNodes);
             
-            // If we have context, we send it. If strictly text chat, just text.
             let messagePayload;
             if (contextParts.length > 0) {
                  messagePayload = [
                     ...contextParts,
-                    { text: `\n\nUser Query: ${userText}` }
+                    { text: `\n\nUser Query: ${textToSend}` }
                 ];
             } else {
-                messagePayload = userText;
+                messagePayload = textToSend;
             }
 
             const response = await session.sendMessage({ message: messagePayload });
@@ -371,11 +447,21 @@ export const Whiteboard: React.FC = () => {
                 [activeAiNodeId]: [...(prev[activeAiNodeId] || []), { role: 'model', text: response.text || "I couldn't generate a response." }]
             }));
 
-        } catch (error) {
-            console.error(error);
+        } catch (error: any) {
+            console.error("Chat error:", error);
+            let errorMessage = error instanceof Error ? error.message : "Unknown error";
+            
+            // Attempt to extract clean message from JSON string if present
+            try {
+                if (errorMessage.includes('{')) {
+                    const parsed = JSON.parse(errorMessage.substring(errorMessage.indexOf('{')));
+                    if (parsed.error?.message) errorMessage = parsed.error.message;
+                }
+            } catch (e) { /* ignore parse error */ }
+
             setChats(prev => ({
                 ...prev,
-                [activeAiNodeId]: [...(prev[activeAiNodeId] || []), { role: 'model', text: "Error connecting to AI. Please check your API key." }]
+                [activeAiNodeId]: [...(prev[activeAiNodeId] || []), { role: 'model', text: `⚠️ Error: ${errorMessage}.` }]
             }));
         } finally {
             setIsChatLoading(false);
@@ -384,15 +470,37 @@ export const Whiteboard: React.FC = () => {
 
     // --- Render Helpers ---
     
-    const getNodeCenter = (id: string) => {
+    // Calculate positions for "Left" (Input) and "Right" (Output) ports
+    const getNodePortPosition = (id: string, type: 'input' | 'output') => {
         const node = nodes.find(n => n.id === id);
         if (!node) return { x: 0, y: 0 };
-        const w = node.width || 300;
+        
+        const w = node.width || 280;
         const h = node.height || 200;
-        return {
-            x: node.position.x + w / 2,
-            y: node.position.y + h / 2
-        };
+        
+        // Vertically centered
+        const y = node.position.y + h / 2;
+        // Input = Left edge, Output = Right edge
+        const x = type === 'input' ? node.position.x : node.position.x + w;
+
+        return { x, y };
+    };
+
+    const NodeCornerIcon = ({ type, title }: { type: string, title: string }) => {
+        const size = 16;
+        switch(type) {
+            case 'video': return <div className="bg-blue-100 p-1.5 rounded-full text-blue-600 shadow-sm"><Video size={size} /></div>;
+            case 'image': return <div className="bg-purple-100 p-1.5 rounded-full text-purple-600 shadow-sm"><ImageIcon size={size} /></div>;
+            case 'audio': return <div className="bg-red-100 p-1.5 rounded-full text-red-600 shadow-sm"><Mic size={size} /></div>;
+            case 'pdf': return <div className="bg-orange-100 p-1.5 rounded-full text-orange-600 shadow-sm"><FileType size={size} /></div>;
+            case 'youtube': return <div className="bg-red-100 p-1.5 rounded-full text-red-600 shadow-sm"><Youtube size={size} /></div>;
+            case 'ai-partner': return <div className="bg-indigo-100 p-1.5 rounded-full text-indigo-600 shadow-sm"><Bot size={size} /></div>;
+            case 'link': 
+                if (title.includes('TikTok')) return <div className="bg-black p-1.5 rounded-full text-white shadow-sm"><TikTokIcon size={size} /></div>;
+                if (title.includes('IG')) return <div className="bg-pink-100 p-1.5 rounded-full text-pink-600 shadow-sm"><Instagram size={size} /></div>;
+                return <div className="bg-slate-100 p-1.5 rounded-full text-slate-600 shadow-sm"><LinkIcon size={size} /></div>;
+            default: return <div className="bg-slate-100 p-1.5 rounded-full text-slate-600 shadow-sm"><FileText size={size} /></div>;
+        }
     };
 
     const NodeTypeIcon = ({ type, title }: { type: string, title: string }) => {
@@ -456,16 +564,51 @@ export const Whiteboard: React.FC = () => {
                     }}><Bot size={20} /></button>
 
                     <div className="w-px h-6 bg-slate-200"></div>
+
+                    {/* Add YouTube Button */}
+                     <button 
+                        className="p-2 hover:bg-red-50 text-slate-600 hover:text-red-600 rounded-full transition-colors" 
+                        title="Add YouTube Video" 
+                        onClick={() => {
+                            const url = prompt("Enter YouTube URL (Video or Short):");
+                            if (!url) return;
+                            
+                            // Basic validation
+                            const hasYoutubeDomain = url.includes('youtube.com') || url.includes('youtu.be');
+                            if (hasYoutubeDomain) {
+                                addNode({
+                                    id: Date.now().toString(), 
+                                    type: 'youtube', 
+                                    content: url, 
+                                    // Center in view roughly
+                                    position: {x: Math.max(100, window.innerWidth/2 - 200), y: Math.max(100, window.innerHeight/2 - 150)}, 
+                                    title: 'Youtube Video'
+                                });
+                            } else {
+                                alert("Please enter a valid YouTube URL (e.g. youtube.com/watch?v=... or youtu.be/...)");
+                            }
+                        }}
+                    >
+                        <Youtube size={20} />
+                    </button>
                     
                     <button className="p-2 hover:bg-slate-100 rounded-full text-slate-600 transition-colors" title="Add Link" onClick={() => {
-                        const url = prompt("Enter URL (TikTok, IG, Youtube, Website):");
-                        if(url) addNode({
-                            id: Date.now().toString(), 
-                            type: url.includes('youtube') ? 'youtube' : 'link', 
-                            content: url, 
-                            position: {x: 150, y: 150}, 
-                            title: url.includes('tiktok') ? 'TikTok' : url.includes('instagram') ? 'IG Reel' : 'Link'
-                        });
+                        const url = prompt("Enter URL (Website, TikTok, etc.):");
+                        if (url) {
+                            let type: WhiteboardNode['type'] = 'link';
+                            let title = 'Link';
+                             if (url.includes('tiktok.com')) {
+                                title = 'TikTok';
+                            }
+                            
+                            addNode({
+                                id: Date.now().toString(), 
+                                type, 
+                                content: url, 
+                                position: {x: 150, y: 150}, 
+                                title
+                            });
+                        }
                     }}><LinkIcon size={20} /></button>
                     <input type="file" ref={fileInputRef} className="hidden" multiple accept="image/*,video/*,audio/*,.pdf" onChange={(e) => {
                         if(e.target.files) Array.from(e.target.files).forEach(f => processFile(f as File, 200, 200));
@@ -474,23 +617,35 @@ export const Whiteboard: React.FC = () => {
 
                  {/* Connections Layer (SVG) */}
                  <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+                     <defs>
+                         <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                             <polygon points="0 0, 10 3.5, 0 7" fill="#cbd5e1" />
+                         </marker>
+                     </defs>
                      {connections.map(conn => {
-                         const start = getNodeCenter(conn.from);
-                         const end = getNodeCenter(conn.to);
+                         // From = Output (Right), To = Input (Left)
+                         const start = getNodePortPosition(conn.from, 'output');
+                         const end = getNodePortPosition(conn.to, 'input');
+                         
+                         // Create a bezier curve for smoother connections
+                         const controlPoint1 = { x: start.x + 50, y: start.y };
+                         const controlPoint2 = { x: end.x - 50, y: end.y };
+                         
                          return (
-                             <line 
+                             <path 
                                 key={conn.id}
-                                x1={start.x} y1={start.y}
-                                x2={end.x} y2={end.y}
+                                d={`M ${start.x} ${start.y} C ${controlPoint1.x} ${controlPoint1.y}, ${controlPoint2.x} ${controlPoint2.y}, ${end.x} ${end.y}`}
                                 stroke="#cbd5e1"
                                 strokeWidth="2"
+                                fill="none"
+                                markerEnd="url(#arrowhead)"
                              />
                          );
                      })}
                      {connectingFromId && (
                          <line 
-                            x1={getNodeCenter(connectingFromId).x} 
-                            y1={getNodeCenter(connectingFromId).y}
+                            x1={getNodePortPosition(connectingFromId, 'output').x} 
+                            y1={getNodePortPosition(connectingFromId, 'output').y}
                             x2={mousePos.x}
                             y2={mousePos.y}
                             stroke="#9333ea"
@@ -504,12 +659,12 @@ export const Whiteboard: React.FC = () => {
                  {nodes.map(node => (
                      <div 
                         key={node.id}
-                        className={`absolute rounded-xl shadow-lg border flex flex-col group transition-all duration-200 
+                        className={`absolute rounded-xl shadow-sm border flex flex-col group transition-all duration-200 
                             ${node.type === 'ai-partner' 
                                 ? activeAiNodeId === node.id 
-                                    ? 'border-purple-500 ring-2 ring-purple-200 shadow-purple-100' 
+                                    ? 'border-purple-500 ring-2 ring-purple-200 shadow-xl shadow-purple-100' 
                                     : 'border-purple-200 bg-white'
-                                : 'border-slate-200 bg-white hover:shadow-2xl hover:border-blue-300/50'
+                                : 'border-slate-200 bg-white hover:shadow-xl hover:ring-2 hover:ring-blue-400/20'
                             }
                             ${draggedNodeId === node.id ? 'cursor-grabbing shadow-2xl scale-[1.02] z-50' : 'cursor-grab'}
                         `}
@@ -530,18 +685,6 @@ export const Whiteboard: React.FC = () => {
                              node.type === 'pdf' ? 'bg-orange-50 border-slate-100' : 'bg-slate-50 border-slate-100'
                          }`}>
                             <div className="flex items-center gap-2 text-xs font-bold text-slate-700 truncate flex-1 mr-2">
-                                {node.type === 'video' && <Video size={14} className="text-blue-600"/>}
-                                {node.type === 'image' && <ImageIcon size={14} className="text-purple-600"/>}
-                                {node.type === 'audio' && <Mic size={14} className="text-red-600"/>}
-                                {node.type === 'text' && <FileText size={14} className="text-slate-600"/>}
-                                {node.type === 'pdf' && <FileType size={14} className="text-orange-600"/>}
-                                {node.type === 'ai-partner' && <Bot size={14} className="text-purple-600"/>}
-                                {node.type === 'link' && (
-                                    node.title.includes('TikTok') ? <TikTokIcon className="text-black"/> :
-                                    node.title.includes('IG') ? <Instagram size={14} className="text-pink-600"/> :
-                                    <LinkIcon size={14} className="text-blue-400"/>
-                                )}
-                                {node.type === 'youtube' && <Youtube size={14} className="text-red-600"/>}
                                 <span className="truncate">{node.title}</span>
                             </div>
                             <button onClick={(e) => { e.stopPropagation(); removeNode(node.id); }} className="text-slate-400 hover:text-red-500 transition-colors bg-white/50 rounded p-0.5">
@@ -550,15 +693,16 @@ export const Whiteboard: React.FC = () => {
                          </div>
 
                          {/* Node Content */}
-                         <div className="flex-1 p-3 overflow-hidden relative bg-white rounded-b-xl group-hover:bg-slate-50/30 transition-colors">
+                         <div className={`flex-1 p-3 overflow-hidden relative bg-white rounded-b-xl group-hover:bg-slate-50/30 transition-colors ${isInteracting ? 'pointer-events-none' : ''}`}>
+                             
                              {/* Background Type Icon Watermark */}
                              <div className="absolute right-2 bottom-2 w-24 h-24 pointer-events-none z-0">
                                  <NodeTypeIcon type={node.type} title={node.title} />
                              </div>
 
-                             {/* Visual Cue Badge */}
-                             <div className="absolute top-2 right-2 z-10 bg-white/80 backdrop-blur px-1.5 py-0.5 rounded text-[10px] font-bold text-slate-400 border border-slate-100 uppercase tracking-wider pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
-                                 {node.type.replace('-', ' ')}
+                             {/* Visual Cue Corner Icon */}
+                             <div className="absolute top-3 right-3 z-10 pointer-events-none opacity-90">
+                                 <NodeCornerIcon type={node.type} title={node.title} />
                              </div>
 
                              <div className="relative z-10 h-full">
@@ -577,10 +721,10 @@ export const Whiteboard: React.FC = () => {
                                             <Sparkles size={24} />
                                         </div>
                                         <p className="text-xs text-slate-500 max-w-[200px]">
-                                            Connect nodes to me to analyze them. Click to open chat sidebar.
+                                            Connect nodes to the Left Input to feed me data.
                                         </p>
                                         <div className="text-[10px] font-bold text-purple-600 bg-purple-50 px-2 py-1 rounded-full">
-                                            {connections.filter(c => c.to === node.id || c.from === node.id).length} Linked Sources
+                                            {connections.filter(c => c.to === node.id).length} Inputs | {connections.filter(c => c.from === node.id).length} Outputs
                                         </div>
                                     </div>
                                 )}
@@ -618,9 +762,25 @@ export const Whiteboard: React.FC = () => {
                                     </div>
                                 )}
                                 {node.type === 'youtube' && (
-                                    <div className="bg-red-50 p-2 rounded h-full flex flex-col items-center justify-center text-center border border-red-100">
-                                        <Youtube size={48} className="text-red-600 mb-2 drop-shadow-sm" />
-                                        <a href={node.content} target="_blank" className="text-xs font-medium text-red-900 hover:underline line-clamp-2" onMouseDown={(e) => e.stopPropagation()}>{node.content}</a>
+                                    <div className="w-full h-full bg-black rounded overflow-hidden border border-slate-100 relative">
+                                        {getYoutubeId(node.content) ? (
+                                            <iframe 
+                                                width="100%" 
+                                                height="100%" 
+                                                src={`https://www.youtube.com/embed/${getYoutubeId(node.content)}?origin=${window.location.origin || 'https://ideabrowser.com'}&rel=0`} 
+                                                title="YouTube video player" 
+                                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                                                referrerPolicy="strict-origin-when-cross-origin"
+                                                allowFullScreen
+                                                className="w-full h-full border-0"
+                                                onMouseDown={(e) => e.stopPropagation()} 
+                                            ></iframe>
+                                        ) : (
+                                            <div className="flex flex-col items-center justify-center h-full text-white p-4 text-center">
+                                                <Youtube size={48} className="mb-2" />
+                                                <p className="text-xs">Invalid Video URL</p>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                                 {node.type === 'pdf' && (
@@ -640,10 +800,19 @@ export const Whiteboard: React.FC = () => {
                              </div>
                          </div>
 
-                        {/* Connection Handles */}
+                        {/* Input Port (Left) */}
+                        <div 
+                            className="absolute top-1/2 -left-3 -translate-y-1/2 w-6 h-6 flex items-center justify-center z-30"
+                            title="Input (Drop here)"
+                        >
+                            <div className="w-3 h-3 rounded-full border-2 bg-white border-slate-300"></div>
+                        </div>
+
+                        {/* Output Port (Right) - Draggable */}
                         <div 
                             className="absolute top-1/2 -right-3 -translate-y-1/2 w-6 h-6 flex items-center justify-center cursor-crosshair group/handle z-30"
-                            onMouseDown={(e) => handleMouseDownHandle(e, node.id)}
+                            onMouseDown={(e) => handleMouseDownPort(e, node.id)}
+                            title="Output (Drag to connect)"
                         >
                             <div className={`w-3 h-3 rounded-full border-2 transition-all ${connectingFromId === node.id ? 'bg-blue-500 border-white scale-125' : 'bg-white border-slate-300 group-hover/handle:bg-blue-500 group-hover/handle:border-white'}`}></div>
                         </div>
@@ -689,9 +858,12 @@ export const Whiteboard: React.FC = () => {
                                 <h3 className="font-bold text-slate-800 text-sm max-w-[200px] truncate">
                                     {nodes.find(n => n.id === activeAiNodeId)?.title || 'AI Partner'}
                                 </h3>
-                                <p className="text-xs text-slate-500">
-                                    {connections.filter(c => c.to === activeAiNodeId || c.from === activeAiNodeId).length} sources connected
-                                </p>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] text-green-600 bg-green-50 px-1.5 py-0.5 rounded flex items-center gap-1">
+                                        <Eye size={10} /> Vision Active
+                                    </span>
+                                    <span className="text-[10px] text-slate-400">| {connections.filter(c => c.to === activeAiNodeId || c.from === activeAiNodeId).length} sources</span>
+                                </div>
                             </div>
                         </div>
                         <button onClick={() => setActiveAiNodeId(null)} className="text-slate-400 hover:text-slate-600">
@@ -702,13 +874,33 @@ export const Whiteboard: React.FC = () => {
                     {/* Chat Messages */}
                     <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50">
                         {(chats[activeAiNodeId] || []).map((msg, i) => (
-                            <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                <div className={`max-w-[90%] p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
+                            <div key={i} className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}>
+                                <div className={`group relative max-w-[90%] p-3 rounded-2xl text-sm leading-relaxed whitespace-pre-wrap shadow-sm ${
                                     msg.role === 'user' 
                                     ? 'bg-purple-600 text-white rounded-tr-none' 
                                     : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
                                 }`}>
                                     {msg.text}
+
+                                    {/* Copy/Export Actions for AI Messages */}
+                                    {msg.role === 'model' && (
+                                        <div className="absolute -bottom-8 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex gap-1 items-center p-1 bg-white/80 backdrop-blur border border-slate-100 rounded-lg shadow-sm">
+                                            <button 
+                                                onClick={() => handleCopyToClipboard(msg.text, i)}
+                                                className="p-1 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded"
+                                                title="Copy to Clipboard"
+                                            >
+                                                {copiedState === i ? <Check size={14} className="text-green-500"/> : <Copy size={14} />}
+                                            </button>
+                                            <button 
+                                                onClick={() => handleDownloadMarkdown(msg.text)}
+                                                className="p-1 text-slate-500 hover:text-purple-600 hover:bg-purple-50 rounded"
+                                                title="Export Markdown"
+                                            >
+                                                <Download size={14} />
+                                            </button>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         ))}
@@ -726,26 +918,48 @@ export const Whiteboard: React.FC = () => {
                     <div className="p-4 bg-white border-t border-slate-100">
                          {/* Suggested Actions based on connected nodes */}
                          {(() => {
-                             const connectedCount = connections.filter(c => c.to === activeAiNodeId || c.from === activeAiNodeId).length;
-                             if (connectedCount > 0 && (chats[activeAiNodeId]?.length || 0) < 3) {
-                                 return (
-                                     <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
-                                         <button 
-                                            onClick={() => { setInputMsg("Analyze the connected nodes and summarize key themes."); handleSendMessage(); }}
-                                            className="whitespace-nowrap px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full hover:bg-purple-100 border border-purple-100 transition-colors"
-                                         >
-                                            ✨ Summarize Context
-                                         </button>
-                                         <button 
-                                            onClick={() => { setInputMsg("Draft a creative piece based on these inputs."); handleSendMessage(); }}
-                                            className="whitespace-nowrap px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full hover:bg-blue-100 border border-blue-100 transition-colors"
-                                         >
-                                            📝 Draft Content
-                                         </button>
-                                     </div>
-                                 );
-                             }
-                             return null;
+                             const connectedNodes = nodes.filter(n => 
+                                connections.some(c => (c.to === activeAiNodeId && c.from === n.id) || (c.from === activeAiNodeId && c.to === n.id))
+                             );
+                             
+                             const hasYoutube = connectedNodes.some(n => n.type === 'youtube');
+                             const hasNativeVideo = connectedNodes.some(n => n.type === 'video');
+                             const connectedCount = connectedNodes.length;
+
+                             return (
+                                 <div className="flex gap-2 mb-3 overflow-x-auto pb-1 scrollbar-hide">
+                                     {/* Quick Transcript Button for YouTube */}
+                                     {hasYoutube && (
+                                        <button 
+                                            onClick={() => handleSendMessage("Please find and generate the full transcript for the YouTube video provided in the context. Use Google Search to find the transcript if needed. Format it as a clean Markdown script.")}
+                                            className="whitespace-nowrap px-3 py-1.5 bg-red-50 text-red-700 text-xs font-medium rounded-full hover:bg-red-100 border border-red-100 transition-colors flex items-center gap-1"
+                                        >
+                                           <Subtitles size={12} /> Get YT Transcript
+                                        </button>
+                                     )}
+                                     
+                                     {/* Analyze Video Button for Native Video */}
+                                     {hasNativeVideo && (
+                                        <button 
+                                            onClick={() => handleSendMessage("Watch the attached video file. Describe the visual style, key events, and the emotion conveyed.")}
+                                            className="whitespace-nowrap px-3 py-1.5 bg-blue-50 text-blue-700 text-xs font-medium rounded-full hover:bg-blue-100 border border-blue-100 transition-colors flex items-center gap-1"
+                                        >
+                                           <Eye size={12} /> Analyze Video
+                                        </button>
+                                     )}
+                                     
+                                     {connectedCount > 0 && (chats[activeAiNodeId]?.length || 0) < 3 && (
+                                        <>
+                                            <button 
+                                                onClick={() => handleSendMessage("Draft a creative piece based on these inputs.")}
+                                                className="whitespace-nowrap px-3 py-1.5 bg-purple-50 text-purple-700 text-xs font-medium rounded-full hover:bg-purple-100 border border-purple-100 transition-colors"
+                                            >
+                                                📝 Draft Content
+                                            </button>
+                                        </>
+                                     )}
+                                 </div>
+                             );
                          })()}
 
                         <div className="relative flex items-center">
@@ -759,7 +973,7 @@ export const Whiteboard: React.FC = () => {
                                 autoFocus
                             />
                             <button 
-                                onClick={handleSendMessage}
+                                onClick={() => handleSendMessage()}
                                 disabled={isChatLoading || !inputMsg.trim()}
                                 className="absolute right-2 p-1.5 bg-purple-600 text-white rounded-full hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                             >

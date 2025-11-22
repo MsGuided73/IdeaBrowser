@@ -1,917 +1,807 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle, Zap, TrendingUp, AlertTriangle, Clock, Target, Share2, Bookmark, Hammer, ExternalLink, MessageSquare, Download, Flag, ChevronDown, Send, X, Loader2, Sparkles, Copy, BarChart3, Twitter, Linkedin, Link as LinkIcon, Maximize2 } from 'lucide-react';
-import { BusinessIdea } from '../types';
+
+import React, { useState, useEffect, useRef } from 'react';
+import { 
+  ArrowLeft, ArrowRight, CheckCircle, Zap, TrendingUp, AlertTriangle, 
+  Clock, Target, Share2, Bookmark, Hammer, ExternalLink, MessageSquare, 
+  Download, Flag, ChevronDown, ChevronUp, Send, X, Loader2, Sparkles, Copy, 
+  BarChart3, Twitter, Linkedin, Link as LinkIcon, Maximize2, Pencil, Save, Code, Terminal, FileText,
+  Layout, Calendar, Mail, Users, Search, Megaphone, Box, FileCode, DollarSign, PieChart, Eye
+} from 'lucide-react';
+import { BusinessIdea, ValueLadderStep } from '../types';
 import { TrendChart } from './TrendChart';
-import { Chat } from '@google/genai';
 import { createIdeaChatSession, generateArtifact, generateSectionDeepDive, generateFullAnalysis } from '../services/geminiService';
+import { Chat } from '@google/genai';
 
 interface IdeaDetailProps {
   idea: BusinessIdea;
   loading: boolean;
-  onSaveIdea?: (idea: BusinessIdea) => void;
-  isSaved?: boolean;
+  onSaveIdea: (idea: BusinessIdea) => void;
+  onUpdateIdea: (idea: BusinessIdea) => void;
+  isSaved: boolean;
 }
 
-interface ChatMessage {
-  role: 'user' | 'model';
-  text: string;
-}
+// Template Data Configuration
+const TEMPLATE_CATEGORIES = [
+  {
+    id: 'popular',
+    title: 'Popular',
+    count: '3 templates',
+    description: 'Most commonly used templates to get started',
+    icon: <Sparkles size={18} className="text-purple-600" />,
+    bg: 'bg-purple-50',
+    items: [
+      { id: 'ad-creatives', title: 'Ad Creatives', description: 'High-converting ad copy and creative concepts', icon: <Megaphone size={18}/> },
+      { id: 'brand-package', title: 'Brand Package', description: 'Complete brand identity with logo, colors, and voice', icon: <Flag size={18}/> },
+      { id: 'landing-page', title: 'Landing Page', description: 'Copy + wireframe blocks', icon: <Layout size={18}/> },
+    ]
+  },
+  {
+    id: 'marketing',
+    title: 'Marketing',
+    count: '8 templates',
+    description: 'Marketing focused templates for your business',
+    icon: <Megaphone size={18} className="text-pink-600" />,
+    bg: 'bg-pink-50',
+    items: [
+      { id: 'content-calendar', title: 'Content Calendar', description: '90-day content marketing plan', icon: <Calendar size={18}/> },
+      { id: 'email-funnel', title: 'Email Funnel System', description: 'Complete email marketing funnel with sequences', icon: <Mail size={18}/> },
+      { id: 'email-sequence', title: 'Email Sequence', description: '5-email nurture sequence', icon: <Mail size={18}/> },
+      { id: 'lead-magnet', title: 'Lead Magnet', description: 'Irresistible lead generation offers', icon: <Zap size={18}/> },
+      { id: 'sales-funnel', title: 'Sales Funnel', description: 'Customer journey optimization strategy', icon: <Target size={18}/> },
+      { id: 'seo-content', title: 'SEO Content', description: 'Search-optimized content strategy', icon: <Search size={18}/> },
+      { id: 'tweet-page', title: 'Tweet-Sized Landing Page', description: 'Ultra-minimal 280-character landing page', icon: <Twitter size={18}/> },
+      { id: 'user-personas', title: 'User Personas', description: 'Detailed customer persona cards with motivations', icon: <Users size={18}/> },
+    ]
+  },
+  {
+    id: 'product',
+    title: 'Product',
+    count: '3 templates',
+    description: 'Product focused templates for your business',
+    icon: <Box size={18} className="text-blue-600" />,
+    bg: 'bg-blue-50',
+    items: [
+      { id: 'feature-specs', title: 'Feature Specs', description: 'Detailed feature specifications and user stories', icon: <FileText size={18}/> },
+      { id: 'mvp-roadmap', title: 'MVP Roadmap', description: '90-day development plan with feature prioritization', icon: <Hammer size={18}/> },
+      { id: 'prd', title: 'Product Requirements Doc', description: 'Complete PRD with technical specifications', icon: <FileCode size={18}/> },
+    ]
+  },
+  {
+    id: 'business',
+    title: 'Business',
+    count: '4 templates',
+    description: 'Business focused templates for your business',
+    icon: <DollarSign size={18} className="text-indigo-600" />,
+    bg: 'bg-indigo-50',
+    items: [
+      { id: 'gtm-calendar', title: 'GTM Launch Calendar', description: '90-day launch timeline with team coordination', icon: <Calendar size={18}/> },
+      { id: 'gtm-strategy', title: 'GTM Strategy', description: 'Go-to-market strategy and launch plan', icon: <Target size={18}/> },
+      { id: 'kpi-dashboard', title: 'KPI Dashboard', description: 'Pre-built metrics tracker with formulas', icon: <BarChart3 size={18}/> },
+      { id: 'pricing-strategy', title: 'Pricing Strategy', description: 'Strategic pricing framework and psychology', icon: <DollarSign size={18}/> },
+    ]
+  },
+  {
+    id: 'research',
+    title: 'Research',
+    count: '2 templates',
+    description: 'Research focused templates for your business',
+    icon: <Search size={18} className="text-teal-600" />,
+    bg: 'bg-teal-50',
+    items: [
+      { id: 'competitive-analysis', title: 'Competitive Analysis', description: 'Deep dive into competitors and market gaps', icon: <TrendingUp size={18}/> },
+      { id: 'interview-guide', title: 'Customer Interview Guide', description: 'Structured interviews for validation and insights', icon: <MessageSquare size={18}/> },
+    ]
+  }
+];
 
-const KPICard = ({ label, score, subLabel, theme }: { label: string; score: number; subLabel: string; theme: 'green' | 'red' | 'blue' | 'orange' }) => {
+export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIdea, onUpdateIdea, isSaved }) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editedIdea, setEditedIdea] = useState<BusinessIdea>(idea);
+  const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({'popular': true, 'product': true});
   
-  const themeConfig = {
-    green: { bg: 'bg-green-50', text: 'text-slate-800', bar: 'bg-green-500' },
-    red: { bg: 'bg-red-50', text: 'text-slate-800', bar: 'bg-red-500' },
-    blue: { bg: 'bg-blue-50', text: 'text-slate-800', bar: 'bg-blue-500' },
-    orange: { bg: 'bg-orange-50', text: 'text-slate-800', bar: 'bg-orange-500' },
-  };
-
-  const t = themeConfig[theme];
-
-  return (
-    <div className={`p-5 rounded-xl ${t.bg} flex flex-col justify-between h-full min-h-[120px]`}>
-      <div className="flex justify-between items-start mb-2">
-        <span className="text-sm font-medium text-slate-600">{label} <span className="text-slate-400 text-xs font-normal ml-0.5">ⓘ</span></span>
-      </div>
-      <div>
-        <div className="flex items-baseline gap-2 mb-2">
-            <span className={`text-3xl font-medium ${t.text}`}>{score}</span>
-            <span className="text-sm text-slate-500 font-normal">{subLabel}</span>
-        </div>
-        <div className="w-full bg-slate-200/50 h-1 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${t.bar}`} style={{ width: `${score * 10}%` }}></div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIdea, isSaved = false }) => {
-  const [showActions, setShowActions] = useState(false);
-  const [shareOpen, setShareOpen] = useState(false);
-  const shareRef = useRef<HTMLDivElement>(null);
+  // Modal States
+  const [activeModal, setActiveModal] = useState<'chat' | 'content' | null>(null);
+  const [modalContent, setModalContent] = useState<{ title: string; content: string } | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
   
   // Chat State
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
-  const [inputMsg, setInputMsg] = useState('');
-  const [isChatLoading, setIsChatLoading] = useState(false);
-  const chatSessionRef = useRef<Chat | null>(null);
+  const [chatSession, setChatSession] = useState<Chat | null>(null);
+  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'model', text: string}[]>([]);
+  const [chatInput, setChatInput] = useState('');
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Content/Artifact Modal State
-  const [contentModal, setContentModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    content: string;
-    loading: boolean;
-  }>({ isOpen: false, title: '', content: '', loading: false });
-
-  // Value Ladder Modal State
-  const [isValueLadderOpen, setIsValueLadderOpen] = useState(false);
-  const [ladderCopied, setLadderCopied] = useState(false);
+  useEffect(() => {
+    setEditedIdea(idea);
+    setChatMessages([]);
+    setChatSession(null);
+  }, [idea]);
 
   useEffect(() => {
-    if (isChatOpen && chatEndRef.current) {
-      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (activeModal === 'chat' && !chatSession) {
+      const session = createIdeaChatSession(idea);
+      setChatSession(session);
+      setChatMessages([{ role: 'model', text: `Hi! I'm ready to discuss "${idea.title}". Ask me anything about execution, market risks, or strategy.` }]);
     }
-  }, [chatHistory, isChatOpen]);
+  }, [activeModal, idea, chatSession]);
 
-  // Click outside handler for share menu
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (shareRef.current && !shareRef.current.contains(event.target as Node)) {
-        setShareOpen(false);
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  const toggleCategory = (id: string) => {
+    setExpandedCategories(prev => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
+  };
+
+  const handleSave = () => {
+    onUpdateIdea(editedIdea);
+    setIsEditing(false);
+  };
+
+  const handleCancel = () => {
+    setEditedIdea(idea);
+    setIsEditing(false);
+  };
+
+  const handleChange = (field: keyof BusinessIdea, value: any) => {
+    setEditedIdea(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleNestedChange = (section: 'kpi' | 'businessFit', key: string, value: any) => {
+    setEditedIdea(prev => ({
+      ...prev,
+      [section]: {
+        ...prev[section],
+        [key]: value
       }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const handleOpenChat = () => {
-    setShowActions(false);
-    setIsChatOpen(true);
-    if (!chatSessionRef.current) {
-      chatSessionRef.current = createIdeaChatSession(idea);
-      setChatHistory([{
-        role: 'model', 
-        text: `Hi there! I'm your AI analyst for "${idea.title}". Ask me anything about the market, execution plan, or potential risks.`
-      }]);
-    }
+    }));
   };
 
-  const handleDownload = () => {
-    const jsonString = `data:text/json;chatset=utf-8,${encodeURIComponent(
-      JSON.stringify(idea, null, 2)
-    )}`;
-    const link = document.createElement("a");
-    link.href = jsonString;
-    link.download = `${idea.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
-    link.click();
-    setShowActions(false);
-  };
-
-  const handleGenerateArtifact = async (type: 'founder-fit' | 'ad-creative' | 'brand-package' | 'landing-page', title: string) => {
-    setShowActions(false);
-    setContentModal({ isOpen: true, title, content: '', loading: true });
-    try {
-        const content = await generateArtifact(idea, type);
-        setContentModal({ isOpen: true, title, content, loading: false });
-    } catch (e) {
-        setContentModal({ isOpen: true, title, content: 'Error generating content.', loading: false });
-    }
-  };
-
-  const handleDeepDive = async (section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket', title: string) => {
-      setContentModal({ isOpen: true, title, content: '', loading: true });
-      try {
-          const content = await generateSectionDeepDive(idea, section);
-          setContentModal({ isOpen: true, title, content, loading: false });
-      } catch (e) {
-          setContentModal({ isOpen: true, title, content: 'Error generating analysis.', loading: false });
-      }
-  };
-
-  const handleFullAnalysis = async () => {
-      setContentModal({ isOpen: true, title: `Full Investment Memo: ${idea.title}`, content: '', loading: true });
-      try {
-          const content = await generateFullAnalysis(idea);
-          setContentModal({ isOpen: true, title: `Full Investment Memo: ${idea.title}`, content, loading: false });
-      } catch (e) {
-          setContentModal({ isOpen: true, title: `Full Investment Memo: ${idea.title}`, content: 'Error generating analysis.', loading: false });
-      }
-  };
-
-  const handleModalShare = async () => {
-     if (navigator.share) {
-        try {
-            await navigator.share({
-                title: `Investment Memo: ${idea.title}`,
-                text: contentModal.content,
-            });
-        } catch (err) {
-            console.log('Share canceled');
+  const handleSectionChange = (key: keyof typeof editedIdea.sections, value: any) => {
+    setEditedIdea(prev => ({
+        ...prev,
+        sections: {
+            ...prev.sections,
+            [key]: value
         }
-     } else {
-         // Fallback to copy
-         navigator.clipboard.writeText(contentModal.content);
-         alert("Share not supported on this device. Content copied to clipboard.");
-     }
+    }));
   };
 
-  const handleCopyValueLadder = () => {
-    const text = idea.sections.offer.map(o => 
-      `[${o.type}] ${o.title} (${o.price})\n${o.description}\nValue: ${o.valueProvided}\nGoal: ${o.goal}`
-    ).join('\n\n');
-    
-    const header = `Value Ladder Strategy for ${idea.title}\n\n`;
-    navigator.clipboard.writeText(header + text);
-    setLadderCopied(true);
-    setTimeout(() => setLadderCopied(false), 2000);
+  const handleDeepDive = async (section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket' | 'communitySignals') => {
+    setActiveModal('content');
+    setIsGenerating(true);
+    setModalContent({ title: 'Generating Analysis...', content: 'Please wait while Gemini analyzes live market data...' });
+
+    try {
+      const content = await generateSectionDeepDive(editedIdea, section);
+      let title = '';
+      switch(section) {
+        case 'whyNow': title = 'Why Now & Market Timing'; break;
+        case 'proofAndSignals': title = 'Proof & Market Signals'; break;
+        case 'marketGap': title = 'Market Gap Analysis'; break;
+        case 'executionPlan': title = '90-Day Execution Plan'; break;
+        case 'revenuePotential': title = 'Revenue & Business Model'; break;
+        case 'executionDifficulty': title = 'Technical & Operational Challenges'; break;
+        case 'goToMarket': title = 'Go-To-Market Strategy'; break;
+        case 'communitySignals': title = 'Community Signals & Social Listening'; break;
+      }
+      setModalContent({ title, content });
+    } catch (e) {
+      setModalContent({ title: 'Error', content: 'Failed to generate analysis.' });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const handleGenerateArtifact = async (type: string, title: string) => {
+      setActiveModal('content');
+      setIsGenerating(true);
+      setModalContent({ title: `Building ${title}...`, content: 'Gemini is crafting your asset...' });
+      
+      const content = await generateArtifact(editedIdea, type);
+      setModalContent({ title: title, content });
+      setIsGenerating(false);
+  };
+
+  const handleFullReport = async () => {
+      setActiveModal('content');
+      setIsGenerating(true);
+      setModalContent({ title: 'Generating Investment Memo...', content: 'Compiling a full deep dive report (this may take 30 seconds)...' });
+      const content = await generateFullAnalysis(editedIdea);
+      setModalContent({ title: 'Investment Memo & Deep Dive', content });
+      setIsGenerating(false);
   };
 
   const handleSendMessage = async () => {
-    if (!inputMsg.trim() || !chatSessionRef.current) return;
-
-    const userText = inputMsg;
-    setInputMsg('');
-    setChatHistory(prev => [...prev, { role: 'user', text: userText }]);
-    setIsChatLoading(true);
-
+    if (!chatInput.trim() || !chatSession) return;
+    
+    const userMsg = chatInput;
+    setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
+    setChatInput('');
+    
     try {
-      const result = await chatSessionRef.current.sendMessage({ message: userText });
-      setChatHistory(prev => [...prev, { role: 'model', text: result.text || "I couldn't generate a response." }]);
-    } catch (error) {
-      console.error("Chat error:", error);
-      setChatHistory(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error connecting to the database." }]);
-    } finally {
-      setIsChatLoading(false);
+      const result = await chatSession.sendMessage({ message: userMsg });
+      setChatMessages(prev => [...prev, { role: 'model', text: result.text || "I couldn't generate a response." }]);
+    } catch (e) {
+      setChatMessages(prev => [...prev, { role: 'model', text: "Sorry, I encountered an error." }]);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  };
-
-  const handleShare = (platform: 'twitter' | 'linkedin' | 'copy') => {
-      const url = window.location.href;
-      const text = `Check out this business idea: ${idea.title} - ${idea.description.substring(0, 100)}...`;
-      
-      if (platform === 'twitter') {
-          window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`, '_blank');
-      } else if (platform === 'linkedin') {
-          // Use a feed share intent as fallback for non-public URLs
-          window.open(`https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(text + ' ' + url)}`, '_blank');
-      } else if (platform === 'copy') {
-          navigator.clipboard.writeText(`${idea.title}\n${url}`);
-          alert("Link copied to clipboard!");
+  const handleModalShare = async () => {
+      if (modalContent) {
+          try {
+              await navigator.clipboard.writeText(modalContent.content);
+              alert("Content copied to clipboard!");
+          } catch (err) {
+              console.error("Failed to copy", err);
+          }
       }
-      setShareOpen(false);
-  }
+  };
 
   if (loading) {
     return (
-        <div className="max-w-5xl mx-auto py-20 text-center">
-            <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-blue-600 mx-auto mb-6"></div>
-            <h2 className="text-2xl font-serif text-slate-800 animate-pulse">Consulting the Oracle...</h2>
-            <p className="text-slate-500 mt-2">Analyzing global search trends and synthesizing tomorrow's big idea.</p>
+      <div className="max-w-5xl mx-auto px-4 py-12 animate-pulse">
+        <div className="h-8 bg-slate-200 rounded w-3/4 mb-4"></div>
+        <div className="h-4 bg-slate-200 rounded w-1/2 mb-8"></div>
+        <div className="h-64 bg-slate-100 rounded-xl mb-8"></div>
+        <div className="grid grid-cols-3 gap-4">
+            <div className="h-32 bg-slate-100 rounded-xl"></div>
+            <div className="h-32 bg-slate-100 rounded-xl"></div>
+            <div className="h-32 bg-slate-100 rounded-xl"></div>
         </div>
-    )
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 relative">
-      {/* Hero Header */}
-      <div className="text-center mb-12">
-        <h1 className="text-5xl md:text-6xl font-serif text-blue-500 mb-4">Idea of the Day</h1>
-        <div className="flex items-center justify-center gap-6 text-slate-500 text-sm">
-           <button className="hover:text-blue-600 flex items-center gap-1 transition-colors"><ArrowLeft size={14}/> Previous</button>
-           <div className="flex items-center gap-2 font-medium">
-             <Clock size={14} /> {idea.date}
-           </div>
-           <button className="hover:text-blue-600 flex items-center gap-1 transition-colors">Next Idea <ArrowRight size={14}/></button>
-        </div>
-      </div>
-
-      {/* Top Actions */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-         <div className="flex gap-2 items-center relative z-10">
-            <div className="relative">
-                <button 
-                    onClick={() => setShowActions(!showActions)}
-                    className="px-3 py-1.5 bg-white border border-slate-200 rounded-full text-xs font-medium text-slate-600 flex items-center gap-1 shadow-sm hover:bg-slate-50 transition-all"
-                >
-                    <Zap size={12} className="text-yellow-500" /> 
-                    Idea Actions
-                    <ChevronDown size={12} className={`transition-transform duration-200 ${showActions ? 'rotate-180' : ''}`} />
-                </button>
-
-                {showActions && (
-                    <div className="absolute top-full left-0 mt-2 w-72 bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-2 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <div className="space-y-1">
-                            <button 
-                              onClick={handleOpenChat}
-                              className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 rounded-lg transition-colors text-left group"
-                            >
-                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
-                                    <MessageSquare size={16} />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-800">Get Instant Answers</div>
-                                    <div className="text-xs text-slate-500">AI Chat with this idea</div>
-                                </div>
-                            </button>
-                            
-                            <button 
-                                onClick={handleDownload}
-                                className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 rounded-lg transition-colors text-left group"
-                            >
-                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
-                                    <Download size={16} />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-800">Download Data</div>
-                                    <div className="text-xs text-slate-500">Export all research & analysis</div>
-                                </div>
-                            </button>
-
-                            <button 
-                                onClick={() => handleGenerateArtifact('founder-fit', 'Founder Fit Analysis')}
-                                className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 rounded-lg transition-colors text-left group"
-                            >
-                                <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-100 transition-colors">
-                                    <Target size={16} />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-800">Founder Fit</div>
-                                    <div className="text-xs text-slate-500">Is this idea right for you?</div>
-                                </div>
-                            </button>
-
-                            <button className="w-full flex items-start gap-3 p-3 hover:bg-slate-50 rounded-lg transition-colors text-left group">
-                                <div className="bg-yellow-50 p-2 rounded-lg text-yellow-600 group-hover:bg-yellow-100 transition-colors">
-                                    <Flag size={16} />
-                                </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-slate-800">Claim Idea</div>
-                                    <div className="text-xs text-slate-500">Make this idea yours</div>
-                                </div>
-                            </button>
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {idea.sources && idea.sources.length > 0 && (
-                 <div className="flex -space-x-2 overflow-hidden">
-                    {idea.sources.slice(0,3).map((s, i) => (
-                        <a key={i} href={s.uri} target="_blank" title={s.title} className="inline-block h-6 w-6 rounded-full ring-2 ring-white bg-slate-100 flex items-center justify-center text-[10px] text-slate-500 hover:bg-slate-200">
-                             <ExternalLink size={10} />
-                        </a>
-                    ))}
-                 </div>
-            )}
-         </div>
-         <div className="flex gap-3">
-            <button 
-                onClick={() => onSaveIdea && onSaveIdea(idea)}
-                disabled={isSaved}
-                className={`px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 transition-all border ${
-                    isSaved 
-                    ? 'bg-green-50 text-green-700 border-green-200 cursor-default' 
-                    : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300 hover:text-slate-900'
-                }`}
-            >
-                {isSaved ? <CheckCircle size={16} /> : <Bookmark size={16} />}
-                {isSaved ? 'Saved' : 'Save to My Ideas'}
-            </button>
-
-            {/* Share Button */}
-            <div className="relative" ref={shareRef}>
-                <button 
-                    onClick={() => setShareOpen(!shareOpen)}
-                    className="px-4 py-2 bg-white border border-slate-200 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-slate-50 hover:text-slate-900 text-slate-600 transition-all"
-                >
-                    <Share2 size={16} /> Share
-                </button>
-                
-                {shareOpen && (
-                    <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-xl shadow-xl border border-slate-100 z-50 p-1 animate-in fade-in slide-in-from-top-2 duration-200">
-                        <button onClick={() => handleShare('copy')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left">
-                            <LinkIcon size={14} className="text-slate-400"/> Copy Link
-                        </button>
-                        <button onClick={() => handleShare('twitter')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left">
-                            <Twitter size={14} className="text-blue-400"/> Twitter
-                        </button>
-                        <button onClick={() => handleShare('linkedin')} className="w-full flex items-center gap-2 px-3 py-2 text-xs font-medium text-slate-700 hover:bg-slate-50 rounded-lg text-left">
-                            <Linkedin size={14} className="text-blue-700"/> LinkedIn
-                        </button>
-                    </div>
-                )}
-            </div>
-
-            <button className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2 shadow-lg shadow-purple-200 transition-all">
-                <Hammer size={16} /> Build This Idea
-            </button>
-         </div>
-      </div>
-
-      {/* Idea Title & Desc */}
-      <div className="mb-12">
-        <h2 className="text-3xl md:text-4xl font-serif font-medium text-slate-900 mb-4">{idea.title}</h2>
-        <div className="flex flex-wrap gap-2 mb-6">
-            {idea.tags.map((tag, i) => (
-                <span key={i} className={`px-3 py-1 rounded-full text-xs font-medium flex items-center gap-1 
-                    ${i === 0 ? 'bg-green-100 text-green-700' : 
-                      i === 1 ? 'bg-yellow-100 text-yellow-700' :
-                      'bg-slate-100 text-slate-600'}`}>
-                    {i === 0 && <CheckCircle size={12} />}
-                    {i === 1 && <Clock size={12} />}
-                    {tag}
-                </span>
-            ))}
-        </div>
-        <div className="prose prose-slate max-w-none text-slate-600 leading-relaxed">
-             {idea.description.split('\n').map((p, i) => <p key={i} className="mb-4">{p}</p>)}
-        </div>
-      </div>
-
-      {/* Charts & KPIs */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-12">
-         <div className="lg:col-span-8">
-            <TrendChart 
-              data={idea.trendData} 
-              keyword={idea.trendKeyword} 
-              relatedKeywords={idea.relatedKeywords}
-            />
-         </div>
-         <div className="lg:col-span-4 flex flex-col gap-6">
-             <div className="grid grid-cols-2 gap-4">
-                 <KPICard label="Opportunity" score={idea.kpi.opportunity.score} subLabel={idea.kpi.opportunity.label} theme="green" />
-                 <KPICard label="Problem" score={idea.kpi.problem.score} subLabel={idea.kpi.problem.label} theme="red" />
-                 <KPICard label="Feasibility" score={idea.kpi.feasibility.score} subLabel={idea.kpi.feasibility.label} theme="blue" />
-                 <KPICard label="Why Now" score={idea.kpi.whyNow.score} subLabel={idea.kpi.whyNow.label} theme="orange" />
-             </div>
-             
-             {/* Business Fit Card */}
-             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex-1">
-                <div className="flex items-center justify-between mb-6">
-                   <h3 className="font-bold text-slate-900 text-lg">Business Fit</h3>
-                   <span className="text-[10px] uppercase font-bold text-slate-400 bg-slate-50 px-2 py-1 rounded">Click to Analyze</span>
-                </div>
-                
-                <div className="space-y-4">
-                    {/* Revenue Potential */}
-                    <div 
-                        onClick={() => handleDeepDive('revenuePotential', 'Revenue Potential Analysis')}
-                        className="flex items-start gap-4 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-all group relative"
-                    >
-                         <div className="bg-yellow-100 p-2 rounded-lg text-yellow-600 flex-shrink-0 group-hover:bg-yellow-200 transition-colors"><Target size={18}/></div>
-                         <div className="flex-1">
-                             <div className="flex justify-between items-center mb-1">
-                                 <span className="text-sm font-semibold text-slate-800">Revenue Potential</span>
-                                 <span className="text-sm font-bold text-blue-600">{idea.businessFit.revenuePotential}</span>
-                             </div>
-                             <p className="text-xs text-slate-500 leading-tight group-hover:text-slate-700">$1M-$10M ARR potential with current market growth</p>
-                         </div>
-                         <Maximize2 size={14} className="absolute top-3 right-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-
-                    {/* Execution Difficulty */}
-                    <div 
-                        onClick={() => handleDeepDive('executionDifficulty', 'Execution Difficulty Analysis')}
-                        className="flex items-start gap-4 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-all group relative"
-                    >
-                         <div className="bg-slate-100 p-2 rounded-lg text-slate-500 flex-shrink-0 group-hover:bg-slate-200 transition-colors"><Hammer size={18}/></div>
-                         <div className="flex-1">
-                             <div className="flex justify-between items-center mb-1">
-                                 <span className="text-sm font-semibold text-slate-800">Execution Difficulty</span>
-                                 <span className="text-sm font-bold text-blue-600">{idea.businessFit.executionDifficulty}/10</span>
-                             </div>
-                             <p className="text-xs text-slate-500 leading-tight group-hover:text-slate-700">Complex IoT system for agriculture environments</p>
-                         </div>
-                         <Maximize2 size={14} className="absolute top-3 right-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-
-                    {/* Go-To-Market */}
-                    <div 
-                        onClick={() => handleDeepDive('goToMarket', 'Go-To-Market Strategy')}
-                        className="flex items-start gap-4 p-2 rounded-lg hover:bg-slate-50 cursor-pointer transition-all group relative"
-                    >
-                         <div className="bg-red-100 p-2 rounded-lg text-red-500 flex-shrink-0 group-hover:bg-red-200 transition-colors"><Zap size={18}/></div>
-                         <div className="flex-1">
-                             <div className="flex justify-between items-center mb-1">
-                                 <span className="text-sm font-semibold text-slate-800">Go-To-Market</span>
-                                 <span className="text-sm font-bold text-blue-600">{idea.businessFit.goToMarket}/10</span>
-                             </div>
-                             <p className="text-xs text-slate-500 leading-tight group-hover:text-slate-700">Strong market signals with clear channels</p>
-                         </div>
-                         <Maximize2 size={14} className="absolute top-3 right-2 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </div>
-
-                    {/* Right for You */}
-                    <div className="pt-4 border-t border-slate-100 flex items-center gap-4">
-                         <div className="bg-pink-100 p-2 rounded-lg text-pink-500 flex-shrink-0"><Target size={18}/></div>
-                         <div className="flex-1">
-                             <div className="text-sm font-semibold text-slate-800">Right for You?</div>
-                             <div className="text-xs text-slate-500">Ideal for founders with IoT...</div>
-                         </div>
-                         <button 
-                            onClick={() => handleGenerateArtifact('founder-fit', 'Founder Fit Analysis')}
-                            className="text-blue-600 text-sm font-medium whitespace-nowrap flex items-center gap-1 hover:gap-2 transition-all hover:bg-blue-50 px-2 py-1 rounded"
-                        >
-                             Find Out <ArrowRight size={14} />
-                         </button>
-                    </div>
-                </div>
-             </div>
-         </div>
-      </div>
-
-      {/* Two Column Deep Dive */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-        
-        {/* Left Column */}
-        <div className="lg:col-span-2 space-y-12">
-            
-            {/* Offer Section */}
-            <section>
-                <h3 className="text-xl font-bold text-slate-900 mb-6">Offer</h3>
-                <div className="space-y-6">
-                    {idea.sections.offer.slice(0, 3).map((offer, index) => (
-                        <div key={index} className="flex gap-4">
-                            <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-sm">
-                                {index + 1}
-                            </div>
-                            <div>
-                                <h4 className="font-bold text-slate-800">{offer.title} <span className="text-slate-400 font-normal text-sm ml-1">({offer.price})</span></h4>
-                                <p className="text-slate-600 text-sm mt-1">{offer.description}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-                <button 
-                    onClick={() => setIsValueLadderOpen(true)}
-                    className="mt-4 text-blue-600 text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                    View full value ladder <ArrowRight size={12}/>
-                </button>
-            </section>
-
-            {/* Why Now */}
-            <section>
-                <h3 className="text-xl font-bold text-slate-900 mb-4">Why Now?</h3>
-                <p className="text-slate-600 leading-relaxed">{idea.sections.whyNow}</p>
-                <button 
-                    onClick={() => handleDeepDive('whyNow', 'Why Now: Market Timing Analysis')}
-                    className="mt-3 text-blue-600 text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                    See why this opportunity matters now <ArrowRight size={12}/>
-                </button>
-            </section>
-
-            {/* Proof & Signals */}
-            <section>
-                <h3 className="text-xl font-bold text-slate-900 mb-4">Proof & Signals</h3>
-                <p className="text-slate-600 leading-relaxed">{idea.sections.proofAndSignals}</p>
-                <button 
-                    onClick={() => handleDeepDive('proofAndSignals', 'Proof & Signals Validation')}
-                    className="mt-3 text-blue-600 text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                    Explore proof & signals <ArrowRight size={12}/>
-                </button>
-            </section>
-
-             {/* Market Gap */}
-             <section>
-                <h3 className="text-xl font-bold text-slate-900 mb-4">The Market Gap</h3>
-                <p className="text-slate-600 leading-relaxed">{idea.sections.marketGap}</p>
-                <button 
-                    onClick={() => handleDeepDive('marketGap', 'Market Gap Analysis')}
-                    className="mt-3 text-blue-600 text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                    Understand the market opportunity <ArrowRight size={12}/>
-                </button>
-            </section>
-
-             {/* Execution Plan */}
-             <section className="bg-slate-50 p-6 rounded-2xl border border-slate-100">
-                <h3 className="text-xl font-bold text-slate-900 mb-4">Execution Plan</h3>
-                <p className="text-slate-600 leading-relaxed italic">"{idea.sections.executionPlan}"</p>
-                <button 
-                    onClick={() => handleDeepDive('executionPlan', 'Detailed Execution Strategy')}
-                    className="mt-4 text-blue-600 text-sm font-medium hover:underline flex items-center gap-1"
-                >
-                    View detailed execution strategy <ArrowRight size={12}/>
-                </button>
-            </section>
-
-        </div>
-
-        {/* Right Sidebar */}
-        <div className="space-y-8">
-            
-            {/* Start Building */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                     <div className="bg-purple-600 p-1.5 rounded text-white"><Zap size={16}/></div>
-                     <h3 className="font-bold text-slate-900">Start Building in 1-click</h3>
-                </div>
-                <p className="text-xs text-slate-500 mb-4">Turn this idea into your business with pre-built prompts</p>
-                
-                <div className="space-y-2">
-                    <button 
-                        onClick={() => handleGenerateArtifact('ad-creative', 'Ad Creatives')}
-                        className="w-full text-left px-4 py-2.5 rounded-lg border border-slate-100 text-xs font-medium text-slate-700 hover:bg-slate-50 flex justify-between group transition-colors"
-                    >
-                        <div>
-                            <div className="font-bold">Ad Creatives</div>
-                            <div className="text-[10px] text-slate-400 font-normal">Generate assets instantly</div>
-                        </div>
-                        <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-500"/>
-                    </button>
-
-                    <button 
-                         onClick={() => handleGenerateArtifact('brand-package', 'Brand Identity Package')}
-                         className="w-full text-left px-4 py-2.5 rounded-lg border border-slate-100 text-xs font-medium text-slate-700 hover:bg-slate-50 flex justify-between group transition-colors"
-                    >
-                        <div>
-                            <div className="font-bold">Brand Package</div>
-                            <div className="text-[10px] text-slate-400 font-normal">Colors, fonts & logos</div>
-                        </div>
-                        <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-500"/>
-                    </button>
-
-                    <button 
-                         onClick={() => handleGenerateArtifact('landing-page', 'Landing Page Copy')}
-                         className="w-full text-left px-4 py-2.5 rounded-lg border border-slate-100 text-xs font-medium text-slate-700 hover:bg-slate-50 flex justify-between group transition-colors"
-                    >
-                        <div>
-                            <div className="font-bold">Landing Page</div>
-                            <div className="text-[10px] text-slate-400 font-normal">Hero section copy</div>
-                        </div>
-                        <ArrowRight size={14} className="text-slate-300 group-hover:text-blue-500"/>
-                    </button>
-                </div>
-            </div>
-
-            {/* Community Signals */}
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                <h3 className="font-bold text-slate-900 mb-4">Community Signals</h3>
-                <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                        <div className="bg-orange-100 p-1.5 rounded-full text-orange-600"><TrendingUp size={14}/></div>
-                        <div className="flex-1">
-                            <div className="flex justify-between text-xs font-medium text-slate-900">
-                                <span>Reddit</span>
-                                <span className="text-blue-600">8 / 10</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{idea.communitySignals.reddit}</p>
-                        </div>
-                    </div>
-                    <div className="flex items-start gap-3">
-                        <div className="bg-blue-100 p-1.5 rounded-full text-blue-600"><Share2 size={14}/></div>
-                        <div className="flex-1">
-                            <div className="flex justify-between text-xs font-medium text-slate-900">
-                                <span>Facebook</span>
-                                <span className="text-blue-600">7 / 10</span>
-                            </div>
-                            <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-1">{idea.communitySignals.facebook}</p>
-                        </div>
-                    </div>
-                </div>
-                <button className="mt-4 text-blue-600 text-xs font-medium hover:underline flex items-center gap-1">View detailed breakdown <ArrowRight size={10}/></button>
-            </div>
-
-        </div>
-      </div>
-      
-      {/* Sources Section (If AI Generated) */}
-      {idea.sources && idea.sources.length > 0 && (
-          <div className="mt-12 pt-8 border-t border-slate-200">
-              <h3 className="text-sm font-bold text-slate-500 uppercase tracking-wider mb-4">Grounding Sources</h3>
-              <ul className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-                  {idea.sources.map((s, i) => (
-                      <li key={i}>
-                          <a href={s.uri} target="_blank" rel="noreferrer" className="flex items-start gap-2 p-3 rounded-lg bg-slate-50 hover:bg-blue-50 transition-colors group">
-                             <ExternalLink size={16} className="text-slate-400 group-hover:text-blue-500 mt-0.5 flex-shrink-0" />
-                             <span className="text-sm text-slate-600 group-hover:text-blue-700 font-medium line-clamp-2">{s.title}</span>
-                          </a>
-                      </li>
-                  ))}
-              </ul>
+    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      {/* Header Actions */}
+      <div className="flex justify-between items-center mb-8">
+          <div className="flex gap-2">
+             <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">{editedIdea.tags[0]}</span>
+             <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2 py-1 rounded uppercase tracking-wider">{editedIdea.tags[1] || 'Trending'}</span>
           </div>
-      )}
-
-      {/* Full Analysis Button Section */}
-      <div className="mt-12 bg-slate-900 rounded-2xl p-8 text-center relative overflow-hidden group">
-            <div className="absolute inset-0 bg-gradient-to-r from-blue-900 to-purple-900 opacity-50"></div>
-            <div className="absolute -inset-full top-0 block h-full w-1/2 -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-10 group-hover:animate-shine" />
-            <div className="relative z-10">
-                <h3 className="text-2xl font-serif text-white mb-4">Ready for the deep dive?</h3>
-                <p className="text-blue-200 mb-8 max-w-xl mx-auto">Get a comprehensive Venture Capitalist grade investment memo covering market analysis, financial projections, and risk assessment.</p>
-                <button 
-                    onClick={handleFullAnalysis}
-                    className="bg-white text-slate-900 hover:bg-blue-50 px-8 py-3 rounded-full font-bold shadow-lg shadow-blue-900/50 transition-all transform hover:scale-105 flex items-center gap-2 mx-auto"
-                >
-                    <Sparkles size={18} className="text-blue-600" /> See full analysis
-                </button>
-            </div>
+          <div className="flex items-center gap-3">
+              {isEditing ? (
+                  <>
+                    <button onClick={handleCancel} className="text-slate-500 text-sm font-medium hover:text-slate-800 px-3 py-1.5">
+                        Cancel
+                    </button>
+                    <button onClick={handleSave} className="bg-green-600 hover:bg-green-700 text-white px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-lg shadow-green-200">
+                        <Save size={16} /> Save Changes
+                    </button>
+                  </>
+              ) : (
+                  <>
+                    <button onClick={() => setIsEditing(true)} className="text-slate-400 hover:text-blue-600 p-2 rounded-full hover:bg-blue-50 transition-colors" title="Edit Idea">
+                        <Pencil size={18} />
+                    </button>
+                    <button onClick={() => setActiveModal('chat')} className="text-slate-600 hover:text-blue-600 font-medium text-sm flex items-center gap-1 bg-white border border-slate-200 px-3 py-1.5 rounded-full shadow-sm hover:shadow-md transition-all">
+                        <MessageSquare size={16} /> Ask AI
+                    </button>
+                    <button 
+                        onClick={() => onSaveIdea(editedIdea)}
+                        disabled={isSaved}
+                        className={`px-4 py-1.5 rounded-full text-sm font-bold flex items-center gap-2 transition-all shadow-sm ${isSaved ? 'bg-green-100 text-green-700 cursor-default' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-slate-300'}`}
+                    >
+                        {isSaved ? <><CheckCircle size={16} /> Saved</> : <><Bookmark size={16} /> Save Idea</>}
+                    </button>
+                  </>
+              )}
+          </div>
       </div>
 
-      {/* Chat Modal */}
-      {isChatOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm animate-in fade-in duration-200">
-            <div className="bg-white w-full max-w-lg h-[600px] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-in slide-in-from-bottom-4 duration-300">
-                {/* Chat Header */}
-                <div className="bg-slate-50 border-b border-slate-100 p-4 flex justify-between items-center">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-500 to-purple-500 flex items-center justify-center text-white">
-                            <Sparkles size={16} fill="currentColor" />
-                        </div>
-                        <div>
-                            <h3 className="font-bold text-slate-800 text-sm">Instant Answers</h3>
-                            <p className="text-xs text-slate-500">Ask about {idea.title}</p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={() => setIsChatOpen(false)}
-                        className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-200/50 transition-colors"
-                    >
-                        <X size={20} />
-                    </button>
-                </div>
+      {/* Main Title */}
+      <div className="mb-6">
+         {isEditing ? (
+             <input 
+                type="text" 
+                value={editedIdea.title} 
+                onChange={(e) => handleChange('title', e.target.value)}
+                className="w-full text-4xl md:text-5xl font-serif font-medium text-slate-900 mb-4 border-b-2 border-blue-200 focus:border-blue-500 focus:outline-none bg-transparent pb-2"
+             />
+         ) : (
+             <h1 className="text-4xl md:text-5xl font-serif font-medium text-slate-900 mb-4 leading-tight">
+                {editedIdea.title}
+             </h1>
+         )}
+      </div>
 
-                {/* Chat Messages */}
-                <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
-                    {chatHistory.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${
-                                msg.role === 'user' 
-                                ? 'bg-blue-600 text-white rounded-tr-none' 
-                                : 'bg-slate-100 text-slate-700 rounded-tl-none'
-                            }`}>
-                                {msg.text}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
+          {/* Left Column: Main Report Content */}
+          <div className="lg:col-span-2 space-y-12">
+              
+              {/* Description */}
+              <div>
+                 {isEditing ? (
+                     <textarea 
+                        value={editedIdea.description}
+                        onChange={(e) => handleChange('description', e.target.value)}
+                        className="w-full h-48 text-lg text-slate-600 leading-relaxed p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
+                     />
+                 ) : (
+                     <p className="text-lg text-slate-600 leading-relaxed">
+                        {editedIdea.description}
+                     </p>
+                 )}
+              </div>
+
+              {/* Trend Chart */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-8">
+                  <div className="flex items-center justify-between mb-6">
+                      <h3 className="font-bold text-slate-800 text-lg">Search Interest Trend</h3>
+                      <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded">Last 5 Years</span>
+                  </div>
+                  <TrendChart 
+                      data={editedIdea.trendData} 
+                      keyword={editedIdea.trendKeyword}
+                      relatedKeywords={editedIdea.relatedKeywords}
+                      volume={editedIdea.trendVolume}
+                      growth={editedIdea.trendGrowth}
+                      height={300}
+                  />
+              </div>
+
+              {/* Value Ladder */}
+              <section className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-50 bg-slate-50/50 flex justify-between items-center">
+                      <div>
+                        <h2 className="text-xl font-serif text-slate-800">Value Ladder Strategy</h2>
+                        <p className="text-xs text-slate-500 mt-1">From free value to high-ticket backend.</p>
+                      </div>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                      {editedIdea.sections.offer.map((step, idx) => (
+                          <div key={idx} className="p-6 hover:bg-slate-50 transition-colors group">
+                              <div className="flex items-start justify-between mb-2">
+                                  <div className="flex items-center gap-3">
+                                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                                          idx === 0 ? 'bg-green-100 text-green-700' :
+                                          idx === 2 ? 'bg-blue-100 text-blue-700' : 
+                                          idx === 4 ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'
+                                      }`}>
+                                          {step.type}
+                                      </span>
+                                      {isEditing ? (
+                                          <input 
+                                            type="text" 
+                                            className="font-bold text-slate-800 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent w-64"
+                                            value={step.title}
+                                            onChange={(e) => {
+                                                const newOffers = [...editedIdea.sections.offer];
+                                                newOffers[idx] = { ...step, title: e.target.value };
+                                                setEditedIdea(prev => ({ ...prev, sections: { ...prev.sections, offer: newOffers } }));
+                                            }}
+                                          />
+                                      ) : (
+                                          <h3 className="font-bold text-slate-800">{step.title}</h3>
+                                      )}
+                                  </div>
+                                  {isEditing ? (
+                                      <input 
+                                        type="text" 
+                                        className="text-sm font-bold text-slate-900 border-b border-slate-300 focus:border-blue-500 focus:outline-none bg-transparent text-right w-24"
+                                        value={step.price}
+                                        onChange={(e) => {
+                                            const newOffers = [...editedIdea.sections.offer];
+                                            newOffers[idx] = { ...step, price: e.target.value };
+                                            setEditedIdea(prev => ({ ...prev, sections: { ...prev.sections, offer: newOffers } }));
+                                        }}
+                                      />
+                                  ) : (
+                                      <span className="text-sm font-bold text-slate-900">{step.price}</span>
+                                  )}
+                              </div>
+                              {isEditing ? (
+                                  <textarea 
+                                    className="w-full text-sm text-slate-500 bg-transparent border border-slate-200 rounded p-2 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                    value={step.description}
+                                    onChange={(e) => {
+                                        const newOffers = [...editedIdea.sections.offer];
+                                        newOffers[idx] = { ...step, description: e.target.value };
+                                        setEditedIdea(prev => ({ ...prev, sections: { ...prev.sections, offer: newOffers } }));
+                                    }}
+                                  />
+                              ) : (
+                                  <p className="text-sm text-slate-500 mb-3">{step.description}</p>
+                              )}
+                              <div className="flex gap-4 text-xs text-slate-400">
+                                  <div className="flex items-center gap-1"><CheckCircle size={12} className="text-green-500"/> <span>Goal: {step.goal}</span></div>
+                              </div>
+                          </div>
+                      ))}
+                  </div>
+              </section>
+
+              {/* Analysis Report */}
+              <div className="space-y-10 border-t border-slate-100 pt-10">
+                  <div className="flex justify-between items-end mb-6">
+                    <h2 className="text-3xl font-serif text-slate-900">Market Analysis Report</h2>
+                    <button onClick={handleFullReport} className="text-white bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 transition-colors shadow-lg shadow-slate-200">
+                          <Sparkles size={14} /> Generate Full Investment Memo
+                    </button>
+                  </div>
+                  
+                  <div className="prose prose-slate max-w-none space-y-12">
+                      {/* Why Now */}
+                      <div>
+                          <div className="flex items-center gap-2 mb-3 text-blue-600 font-bold text-xl border-b border-blue-100 pb-2">
+                              <Clock size={24} /> Why Now?
+                          </div>
+                          {isEditing ? (
+                              <textarea 
+                                className="w-full h-32 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none text-slate-600"
+                                value={editedIdea.sections.whyNow}
+                                onChange={(e) => handleSectionChange('whyNow', e.target.value)}
+                              />
+                          ) : (
+                              <p className="text-slate-600 leading-relaxed text-lg">{editedIdea.sections.whyNow}</p>
+                          )}
+                          <button onClick={() => handleDeepDive('whyNow')} className="mt-4 text-sm font-bold text-blue-600 hover:text-blue-800 hover:bg-blue-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-2 transition-colors">
+                              Read Deep Dive Analysis <ArrowRight size={14} />
+                          </button>
+                      </div>
+
+                      {/* Proof & Signals */}
+                      <div>
+                          <div className="flex items-center gap-2 mb-3 text-green-600 font-bold text-xl border-b border-green-100 pb-2">
+                              <CheckCircle size={24} /> Proof & Signals
+                          </div>
+                          {isEditing ? (
+                              <textarea 
+                                className="w-full h-32 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-green-500 focus:outline-none text-slate-600"
+                                value={editedIdea.sections.proofAndSignals}
+                                onChange={(e) => handleSectionChange('proofAndSignals', e.target.value)}
+                              />
+                          ) : (
+                              <p className="text-slate-600 leading-relaxed text-lg">{editedIdea.sections.proofAndSignals}</p>
+                          )}
+                          <button onClick={() => handleDeepDive('proofAndSignals')} className="mt-4 text-sm font-bold text-green-600 hover:text-green-800 hover:bg-green-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-2 transition-colors">
+                              View Validation Data <ArrowRight size={14} />
+                          </button>
+                      </div>
+
+                      {/* Market Gap */}
+                      <div>
+                          <div className="flex items-center gap-2 mb-3 text-purple-600 font-bold text-xl border-b border-purple-100 pb-2">
+                              <Zap size={24} /> Market Gap
+                          </div>
+                          {isEditing ? (
+                              <textarea 
+                                className="w-full h-32 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:outline-none text-slate-600"
+                                value={editedIdea.sections.marketGap}
+                                onChange={(e) => handleSectionChange('marketGap', e.target.value)}
+                              />
+                          ) : (
+                              <p className="text-slate-600 leading-relaxed text-lg">{editedIdea.sections.marketGap}</p>
+                          )}
+                          <button onClick={() => handleDeepDive('marketGap')} className="mt-4 text-sm font-bold text-purple-600 hover:text-purple-800 hover:bg-purple-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-2 transition-colors">
+                              See Competitive Landscape <ArrowRight size={14} />
+                          </button>
+                      </div>
+
+                      {/* Execution Plan */}
+                      <div>
+                          <div className="flex items-center gap-2 mb-3 text-amber-600 font-bold text-xl border-b border-amber-100 pb-2">
+                              <Hammer size={24} /> Execution Plan
+                          </div>
+                          {isEditing ? (
+                              <textarea 
+                                className="w-full h-32 p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-amber-500 focus:outline-none text-slate-600"
+                                value={editedIdea.sections.executionPlan}
+                                onChange={(e) => handleSectionChange('executionPlan', e.target.value)}
+                              />
+                          ) : (
+                              <p className="text-slate-600 leading-relaxed text-lg">{editedIdea.sections.executionPlan}</p>
+                          )}
+                          <button onClick={() => handleDeepDive('executionPlan')} className="mt-4 text-sm font-bold text-amber-600 hover:text-amber-800 hover:bg-amber-50 px-3 py-1.5 rounded-lg inline-flex items-center gap-2 transition-colors">
+                              View 30-60-90 Day Plan <ArrowRight size={14} />
+                          </button>
+                      </div>
+                  </div>
+              </div>
+          </div>
+
+          {/* Right Column: Sidebar */}
+          <div className="space-y-8">
+              
+              {/* KPI Scorecards */}
+              <div className="space-y-4">
+                  {Object.entries(editedIdea.kpi).map(([key, data]: [string, any]) => {
+                      let colorClass = 'text-slate-600';
+                      let bgClass = 'bg-slate-50';
+                      let borderClass = 'border-slate-100';
+
+                      if (key === 'opportunity') { colorClass = 'text-green-600'; bgClass = 'bg-green-50'; borderClass = 'border-green-100'; }
+                      if (key === 'problem') { colorClass = 'text-red-500'; bgClass = 'bg-red-50'; borderClass = 'border-red-100'; }
+                      if (key === 'feasibility') { colorClass = 'text-blue-600'; bgClass = 'bg-blue-50'; borderClass = 'border-blue-100'; }
+                      if (key === 'whyNow') { colorClass = 'text-amber-500'; bgClass = 'bg-amber-50'; borderClass = 'border-amber-100'; }
+
+                      return (
+                        <div key={key} className={`${bgClass} rounded-xl p-5 border ${borderClass} shadow-sm`}>
+                            <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
+                            <div className="flex items-end justify-between">
+                                <div className="flex items-baseline gap-1">
+                                    {isEditing ? (
+                                        <input 
+                                            type="number" 
+                                            min="1" max="10"
+                                            value={data.score}
+                                            onChange={(e) => handleNestedChange('kpi', key, { ...data, score: parseInt(e.target.value) })}
+                                            className="w-12 text-2xl font-bold bg-white border border-slate-200 rounded px-1"
+                                        />
+                                    ) : (
+                                        <span className={`text-3xl font-bold ${colorClass}`}>
+                                            {data.score}
+                                        </span>
+                                    )}
+                                    <span className="text-xs text-slate-400 font-medium">/10</span>
+                                </div>
+                                <div className={`text-xs font-bold ${colorClass} bg-white/50 px-2 py-1 rounded-full shadow-sm border border-white/50`}>{data.label}</div>
                             </div>
                         </div>
-                    ))}
-                    {isChatLoading && (
-                        <div className="flex justify-start">
-                             <div className="bg-slate-50 text-slate-500 p-3 rounded-2xl rounded-tl-none text-sm flex items-center gap-2">
-                                <Loader2 size={14} className="animate-spin" /> Thinking...
-                             </div>
-                        </div>
-                    )}
-                    <div ref={chatEndRef} />
-                </div>
+                      );
+                  })}
+              </div>
 
-                {/* Chat Input */}
-                <div className="p-4 bg-white border-t border-slate-100">
-                    <div className="relative flex items-center">
-                        <input 
-                            type="text" 
-                            value={inputMsg}
-                            onChange={(e) => setInputMsg(e.target.value)}
-                            onKeyDown={handleKeyDown}
-                            placeholder="Ask about revenue, competitors, risks..."
-                            className="w-full bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-full py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
-                            autoFocus
-                        />
-                        <button 
-                            onClick={handleSendMessage}
-                            disabled={!inputMsg.trim() || isChatLoading}
-                            className={`absolute right-2 p-1.5 rounded-full transition-colors ${
-                                !inputMsg.trim() || isChatLoading 
-                                ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
-                                : 'bg-blue-600 text-white hover:bg-blue-700'
-                            }`}
-                        >
-                            <Send size={16} />
+              {/* Business Fit */}
+              <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
+                   <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-lg">
+                      <Target size={20} className="text-slate-400" /> Business Fit
+                   </h3>
+                   <div className="space-y-5">
+                      {[
+                          { label: 'Revenue', key: 'revenuePotential', descKey: 'revenuePotentialDescription', icon: <Sparkles size={16}/> },
+                          { label: 'Difficulty', key: 'executionDifficulty', descKey: 'executionDifficultyDescription', icon: <Hammer size={16}/> },
+                          { label: 'Go-To-Market', key: 'goToMarket', descKey: 'goToMarketDescription', icon: <Share2 size={16}/> }
+                      ].map((item) => (
+                          <div key={item.key}>
+                              <div className="flex justify-between text-sm mb-1">
+                                  <span className="text-slate-600 font-medium flex items-center gap-2">{item.icon} {item.label}</span>
+                                  {isEditing ? (
+                                      <input 
+                                          type="text" 
+                                          className="w-20 text-right text-xs font-bold bg-slate-50 border border-slate-200 rounded"
+                                          value={(editedIdea.businessFit as any)[item.key]}
+                                          onChange={(e) => handleNestedChange('businessFit', item.key, e.target.value)}
+                                      />
+                                  ) : (
+                                      <span className="font-bold text-slate-900">{(editedIdea.businessFit as any)[item.key]} {typeof (editedIdea.businessFit as any)[item.key] === 'number' ? '/10' : ''}</span>
+                                  )}
+                              </div>
+                              <p className="text-xs text-slate-400 leading-tight pl-6">
+                                  {(editedIdea.businessFit as any)[item.descKey]}
+                              </p>
+                          </div>
+                      ))}
+                   </div>
+               </div>
+              
+              {/* Builder Tools - Updated with Categorized Template System */}
+              <div className="space-y-6">
+                  <div className="flex items-center gap-2">
+                     <div className="h-px flex-1 bg-slate-200"></div>
+                     <span className="text-xs text-slate-400 uppercase tracking-wider">or choose from templates below</span>
+                     <div className="h-px flex-1 bg-slate-200"></div>
+                  </div>
+                  
+                  {/* Master Coding Prompt Card */}
+                  <div className="bg-gradient-to-r from-indigo-600 to-purple-600 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden group cursor-pointer" onClick={() => handleGenerateArtifact('coding-prompts', 'AI Coding Agent Prompts')}>
+                       <div className="absolute top-0 right-0 -mt-10 -mr-10 w-40 h-40 bg-white opacity-10 rounded-full blur-3xl group-hover:opacity-20 transition-opacity"></div>
+                       <div className="relative z-10">
+                           <div className="flex items-center gap-3 mb-3">
+                               <div className="w-10 h-10 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                                   <Terminal size={20} className="text-white" />
+                               </div>
+                               <div>
+                                   <h3 className="font-bold text-lg leading-tight">Build This Idea</h3>
+                                   <p className="text-xs text-indigo-100">Master Prompt for AI Agents</p>
+                               </div>
+                           </div>
+                           <p className="text-sm text-indigo-100 mb-4">
+                               Turn this idea's research into actionable prompts for Cursor, Windsurf, or Bolt.new.
+                           </p>
+                           <button className="w-full bg-white text-indigo-600 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 hover:bg-indigo-50 transition-colors">
+                               <Sparkles size={16} /> Generate Coding Prompts
+                           </button>
+                       </div>
+                  </div>
+
+                  {/* Template Categories */}
+                  <div className="space-y-4">
+                      {TEMPLATE_CATEGORIES.map((category) => (
+                          <div key={category.id} className="bg-white border border-slate-100 rounded-2xl shadow-sm overflow-hidden transition-all duration-300">
+                              <button 
+                                  onClick={() => toggleCategory(category.id)}
+                                  className={`w-full p-5 flex items-center justify-between text-left hover:bg-slate-50 transition-colors ${expandedCategories[category.id] ? 'border-b border-slate-100' : ''}`}
+                              >
+                                  <div className="flex items-center gap-4">
+                                      <div className={`w-10 h-10 ${category.bg} rounded-xl flex items-center justify-center`}>
+                                          {category.icon}
+                                      </div>
+                                      <div>
+                                          <div className="flex items-center gap-3">
+                                              <h4 className="font-serif text-lg text-slate-800 font-medium">{category.title}</h4>
+                                              <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full font-medium">{category.count}</span>
+                                          </div>
+                                          <p className="text-xs text-slate-500 mt-0.5">{category.description}</p>
+                                      </div>
+                                  </div>
+                                  {expandedCategories[category.id] ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
+                              </button>
+
+                              {expandedCategories[category.id] && (
+                                  <div className="p-5 bg-slate-50/30 grid grid-cols-1 gap-4">
+                                      {category.items.map((item) => (
+                                          <div key={item.id} className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between gap-4 group hover:border-blue-100 hover:shadow-md transition-all">
+                                              <div className="flex items-start gap-4">
+                                                  <div className="mt-1 text-slate-400 group-hover:text-blue-600 transition-colors">
+                                                      {item.icon}
+                                                  </div>
+                                                  <div>
+                                                      <h5 className="font-bold text-slate-800 text-sm">{item.title}</h5>
+                                                      <p className="text-xs text-slate-500 mt-1 max-w-[200px] leading-relaxed">{item.description}</p>
+                                                  </div>
+                                              </div>
+                                              <div className="flex gap-2">
+                                                  <button 
+                                                      className="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-bold hover:bg-slate-50 flex items-center gap-1 transition-colors"
+                                                      title="Preview Template Structure"
+                                                  >
+                                                      <Eye size={14} /> <span className="hidden sm:inline">Preview</span>
+                                                  </button>
+                                                  <button 
+                                                      onClick={() => handleGenerateArtifact(item.id, item.title)}
+                                                      className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white text-xs font-bold hover:from-blue-700 hover:to-purple-700 flex items-center gap-1 shadow-sm transition-all"
+                                                  >
+                                                      <Sparkles size={14} /> Build <span className="hidden sm:inline">-></span>
+                                                  </button>
+                                              </div>
+                                          </div>
+                                      ))}
+                                  </div>
+                              )}
+                          </div>
+                      ))}
+                  </div>
+              </div>
+
+              {/* Community Signals */}
+              <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                  <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <MessageSquare size={18} className="text-blue-500" /> Community Signals
+                  </h3>
+                  <div className="space-y-4">
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                          <div className="w-8 h-8 rounded-full bg-[#FF4500] text-white flex items-center justify-center font-bold">r/</div>
+                          <div className="flex-1">
+                              <div className="text-xs font-bold text-slate-700">Reddit</div>
+                              <div className="text-[10px] text-slate-500">{editedIdea.communitySignals.reddit}</div>
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                          <div className="w-8 h-8 rounded-full bg-[#1877F2] text-white flex items-center justify-center"><ExternalLink size={14}/></div>
+                          <div className="flex-1">
+                              <div className="text-xs font-bold text-slate-700">Facebook Groups</div>
+                              <div className="text-[10px] text-slate-500">{editedIdea.communitySignals.facebook}</div>
+                          </div>
+                      </div>
+                      <div className="flex items-center gap-3 p-3 rounded-lg bg-slate-50">
+                          <div className="w-8 h-8 rounded-full bg-[#FF0000] text-white flex items-center justify-center"><ExternalLink size={14}/></div>
+                          <div className="flex-1">
+                              <div className="text-xs font-bold text-slate-700">YouTube</div>
+                              <div className="text-[10px] text-slate-500">{editedIdea.communitySignals.youtube}</div>
+                          </div>
+                      </div>
+                      
+                      <button 
+                          onClick={() => handleDeepDive('communitySignals')}
+                          className="w-full py-2 text-center text-xs font-bold text-blue-600 hover:bg-blue-50 rounded transition-colors border border-transparent hover:border-blue-100"
+                      >
+                          View detailed breakdown ->
+                      </button>
+                  </div>
+              </div>
+
+              {/* Sources */}
+               {editedIdea.sources && editedIdea.sources.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6">
+                      <h3 className="font-bold text-slate-800 mb-4 text-sm">Sources</h3>
+                      <div className="space-y-2">
+                          {editedIdea.sources.map((source, idx) => (
+                              <a key={idx} href={source.uri} target="_blank" rel="noopener noreferrer" className="block text-xs text-slate-500 hover:text-blue-600 truncate">
+                                  {idx + 1}. {source.title}
+                              </a>
+                          ))}
+                      </div>
+                  </div>
+               )}
+          </div>
+      </div>
+
+      {/* Modals */}
+      {activeModal && (
+          <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+              <div className="bg-white rounded-2xl w-full max-w-3xl h-[80vh] flex flex-col shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+                  
+                  {/* Modal Header */}
+                  <div className="p-4 border-b border-slate-100 flex justify-between items-center">
+                      <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                          {activeModal === 'chat' ? (
+                              <> <MessageSquare size={18} className="text-blue-600"/> Idea Consultant </>
+                          ) : (
+                              <> <Sparkles size={18} className="text-purple-600"/> {modalContent?.title} </>
+                          )}
+                      </h3>
+                      <div className="flex items-center gap-2">
+                        {activeModal === 'content' && (
+                             <button onClick={handleModalShare} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600" title="Copy to Clipboard">
+                                 <Copy size={18} />
+                             </button>
+                        )}
+                        <button onClick={() => setActiveModal(null)} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-slate-600">
+                            <X size={20} />
                         </button>
-                    </div>
-                    <div className="text-center mt-2">
-                        <p className="text-[10px] text-slate-400">AI can make mistakes. Review generated info.</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-      )}
+                      </div>
+                  </div>
 
-      {/* Value Ladder Modal */}
-      {isValueLadderOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm animate-in fade-in duration-200">
-             <div className="bg-white w-full max-w-5xl h-[85vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
-                 <div className="bg-white border-b border-slate-100 p-6 flex justify-between items-start sticky top-0 z-10">
-                     <div>
-                         <div className="flex items-center gap-3 mb-1">
-                            <h2 className="text-2xl font-serif text-slate-900">Value Ladder Strategy</h2>
-                         </div>
-                         <p className="text-slate-500">A strategic progression of offers that build trust and maximize customer lifetime value.</p>
-                     </div>
-                     <div className="flex gap-2">
-                        <button 
-                            onClick={handleCopyValueLadder}
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-colors flex items-center gap-2"
-                            title="Copy Strategy"
-                        >
-                            {ladderCopied ? <CheckCircle size={20} className="text-green-600" /> : <Copy size={20} />}
-                        </button>
-                        <button 
-                            onClick={() => setIsValueLadderOpen(false)}
-                            className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
-                        >
-                            <X size={24} />
-                        </button>
-                     </div>
-                 </div>
+                  {/* Modal Body */}
+                  <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                      {activeModal === 'content' && (
+                          <div className="prose prose-sm max-w-none prose-slate">
+                              {isGenerating ? (
+                                  <div className="flex flex-col items-center justify-center h-64 text-slate-500">
+                                      <Loader2 size={32} className="animate-spin mb-4 text-blue-500" />
+                                      <p>{modalContent?.content}</p>
+                                  </div>
+                              ) : (
+                                  <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-100 whitespace-pre-wrap">
+                                      {modalContent?.content}
+                                  </div>
+                              )}
+                          </div>
+                      )}
 
-                 <div className="flex-1 overflow-y-auto p-8 bg-slate-50/50">
-                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                         <div className="lg:col-span-2 space-y-6">
-                             {idea.sections.offer.map((offer, index) => (
-                                 <div key={index} className="bg-white border border-slate-100 rounded-xl p-6 shadow-sm hover:shadow-md transition-shadow">
-                                     <div className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">{offer.type || `Step ${index + 1}`}</div>
-                                     
-                                     <div className="flex justify-between items-start gap-4 mb-4">
-                                         <h3 className="text-xl font-bold text-slate-800">{offer.title}</h3>
-                                         <span className="px-3 py-1 bg-blue-50 text-blue-700 font-bold text-sm rounded-full whitespace-nowrap">{offer.price}</span>
-                                     </div>
-                                     
-                                     <p className="text-slate-600 mb-6 leading-relaxed">{offer.description}</p>
-                                     
-                                     {(offer.valueProvided || offer.goal) && (
-                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-50">
-                                             {offer.valueProvided && (
-                                                 <div>
-                                                     <div className="text-xs font-bold text-slate-900 mb-1">Value Provided</div>
-                                                     <p className="text-xs text-slate-500">{offer.valueProvided}</p>
-                                                 </div>
-                                             )}
-                                             {offer.goal && (
-                                                 <div>
-                                                     <div className="text-xs font-bold text-slate-900 mb-1">Goal</div>
-                                                     <p className="text-xs text-slate-500">{offer.goal}</p>
-                                                 </div>
-                                             )}
-                                         </div>
-                                     )}
-                                 </div>
-                             ))}
-                         </div>
+                      {activeModal === 'chat' && (
+                          <div className="space-y-4">
+                              {chatMessages.map((msg, idx) => (
+                                  <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                      <div className={`max-w-[80%] p-4 rounded-2xl ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-700 rounded-bl-none shadow-sm'}`}>
+                                          <p className="text-sm leading-relaxed whitespace-pre-wrap">{msg.text}</p>
+                                      </div>
+                                  </div>
+                              ))}
+                              <div ref={chatEndRef}></div>
+                          </div>
+                      )}
+                  </div>
 
-                         <div className="space-y-6">
-                             <div className="bg-white border border-slate-100 rounded-xl p-6">
-                                <div className="flex justify-center mb-6">
-                                    <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/4/4d/Funnel_icon.svg/1200px-Funnel_icon.svg.png" alt="Value Ladder Diagram" className="w-32 h-32 opacity-10 grayscale hover:grayscale-0 transition-all" />
-                                </div>
-                                <h3 className="font-bold text-slate-900 mb-2">Understanding Value Ladder</h3>
-                                <p className="text-sm text-slate-500 leading-relaxed mb-6">
-                                    The Value Ladder is a business framework that helps you structure your offers in ascending levels of value and price. Start with something irresistible and low-barrier, then build trust and value at each step.
-                                </p>
-                                
-                                <h4 className="font-bold text-slate-900 text-sm mb-3">Why It Works</h4>
-                                <ul className="space-y-2 text-xs text-slate-500">
-                                    <li className="flex items-center gap-2"><ArrowRight size={10}/> Builds trust incrementally</li>
-                                    <li className="flex items-center gap-2"><ArrowRight size={10}/> Maximizes customer lifetime value</li>
-                                    <li className="flex items-center gap-2"><ArrowRight size={10}/> Helps segment your audience</li>
-                                    <li className="flex items-center gap-2"><ArrowRight size={10}/> Creates predictable revenue</li>
-                                </ul>
-                             </div>
-
-                             <div className="bg-white border border-slate-100 rounded-xl p-6">
-                                 <h4 className="font-bold text-slate-900 text-sm mb-4">Key Stages</h4>
-                                 <div className="space-y-4">
-                                     <div>
-                                         <div className="text-xs font-bold text-slate-700">Lead Magnet (Bait)</div>
-                                         <p className="text-[10px] text-slate-400">Free value to build trust and capture leads</p>
-                                     </div>
-                                     <div>
-                                         <div className="text-xs font-bold text-slate-700">Frontend Offer</div>
-                                         <p className="text-[10px] text-slate-400">Low-ticket product to convert leads to buyers</p>
-                                     </div>
-                                     <div>
-                                         <div className="text-xs font-bold text-slate-700">Core Offer</div>
-                                         <p className="text-[10px] text-slate-400">Main product/service delivering full solution</p>
-                                     </div>
-                                     <div>
-                                         <div className="text-xs font-bold text-slate-700">Continuity Program</div>
-                                         <p className="text-[10px] text-slate-400">Ongoing value through memberships or add-ons</p>
-                                     </div>
-                                     <div>
-                                         <div className="text-xs font-bold text-slate-700">Backend Offer</div>
-                                         <p className="text-[10px] text-slate-400">Premium, high-ticket solutions for best customers</p>
-                                     </div>
-                                 </div>
-                             </div>
-                         </div>
-                     </div>
-                 </div>
-             </div>
-        </div>
-      )}
-
-      {/* Content/Artifact Generator Modal (Used for both deep dives and artifacts) */}
-      {contentModal.isOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/20 backdrop-blur-sm animate-in fade-in duration-200">
-             <div className="bg-white w-full max-w-2xl max-h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-slate-100 animate-in zoom-in-95 duration-300">
-                <div className="bg-white border-b border-slate-100 p-4 flex justify-between items-center sticky top-0 z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-purple-100 text-purple-600 flex items-center justify-center">
-                            <Sparkles size={18} />
-                        </div>
-                        <h3 className="font-bold text-slate-800">{contentModal.title}</h3>
-                    </div>
-                    <button onClick={() => setContentModal(prev => ({...prev, isOpen: false}))} className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full">
-                        <X size={20} />
-                    </button>
-                </div>
-                
-                <div className="flex-1 overflow-y-auto p-6">
-                    {contentModal.loading ? (
-                        <div className="flex flex-col items-center justify-center h-40 space-y-4">
-                            <Loader2 size={32} className="animate-spin text-purple-600" />
-                            <p className="text-slate-500 text-sm font-medium">Generating details with Gemini...</p>
-                        </div>
-                    ) : (
-                        <div className="prose prose-slate prose-sm max-w-none">
-                            {contentModal.content.split('\n').map((line, i) => {
-                                // Basic markdown rendering for bold and lists
-                                if (line.startsWith('###')) return <h3 key={i} className="font-bold text-lg mt-4 mb-2">{line.replace('###', '')}</h3>;
-                                if (line.startsWith('**')) return <strong key={i} className="block mt-2 mb-1">{line.replace(/\*\*/g, '')}</strong>;
-                                if (line.startsWith('- ')) return <li key={i} className="ml-4 list-disc">{line.replace('- ', '')}</li>;
-                                return <p key={i} className="mb-2">{line}</p>;
-                            })}
-                        </div>
-                    )}
-                </div>
-
-                {!contentModal.loading && (
-                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-2">
-                        <button 
-                           onClick={handleModalShare}
-                           className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-100 flex items-center gap-2 transition-colors"
-                        >
-                           <Share2 size={14} /> Share
-                        </button>
-                        <button 
-                           onClick={() => {
-                               navigator.clipboard.writeText(contentModal.content);
-                               alert("Copied to clipboard");
-                           }}
-                           className="px-4 py-2 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-lg hover:bg-slate-100 flex items-center gap-2 transition-colors"
-                        >
-                           <Copy size={14} /> Copy
-                        </button>
-                        <button onClick={() => setContentModal(prev => ({...prev, isOpen: false}))} className="px-4 py-2 bg-slate-900 text-white text-sm font-medium rounded-lg hover:bg-slate-800 transition-colors">
-                           Done
-                        </button>
-                    </div>
-                )}
-             </div>
-        </div>
+                  {/* Chat Input */}
+                  {activeModal === 'chat' && (
+                      <div className="p-4 border-t border-slate-100 bg-white rounded-b-2xl">
+                          <div className="relative flex items-center">
+                              <input 
+                                  type="text" 
+                                  value={chatInput}
+                                  onChange={(e) => setChatInput(e.target.value)}
+                                  onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                  placeholder="Ask about competitors, risks, or execution..."
+                                  className="w-full bg-slate-50 border border-slate-200 rounded-full py-3 pl-4 pr-12 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                              />
+                              <button 
+                                  onClick={handleSendMessage}
+                                  disabled={!chatInput.trim()}
+                                  className="absolute right-2 p-1.5 bg-blue-600 text-white rounded-full hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                              >
+                                  <Send size={16} />
+                              </button>
+                          </div>
+                      </div>
+                  )}
+              </div>
+          </div>
       )}
     </div>
   );

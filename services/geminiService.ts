@@ -5,6 +5,13 @@ import { BusinessIdea, WhiteboardNode } from '../types';
 const apiKey = process.env.API_KEY;
 const ai = new GoogleGenAI({ apiKey: apiKey });
 
+const SUPPORTED_MIME_TYPES = new Set([
+  'image/png', 'image/jpeg', 'image/webp', 'image/heic', 'image/heif',
+  'video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/x-flv', 'video/mpg', 'video/webm', 'video/wmv', 'video/3gpp',
+  'audio/wav', 'audio/mp3', 'audio/aiff', 'audio/aac', 'audio/ogg', 'audio/flac',
+  'application/pdf', 'text/plain', 'text/csv', 'text/html'
+]);
+
 const parseGeminiResponse = (text: string): Partial<BusinessIdea> => {
   // Extract JSON from code block
   const jsonMatch = text.match(/```json\n([\s\S]*?)\n```/) || text.match(/```\n([\s\S]*?)\n```/);
@@ -28,6 +35,8 @@ const parseGeminiResponse = (text: string): Partial<BusinessIdea> => {
 };
 
 const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): BusinessIdea => {
+  const randomTrendBase = Math.floor(Math.random() * 100);
+  
   return {
     id: Math.random().toString(36).substr(2, 9),
     date: new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }),
@@ -36,12 +45,14 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
     description: parsedIdea.description || 'No description provided.',
     priceRange: parsedIdea.priceRange || 'Variable',
     trendKeyword: parsedIdea.trendKeyword || 'Market Trend',
+    trendVolume: parsedIdea.trendVolume || '5.5K',
+    trendGrowth: parsedIdea.trendGrowth || '+85%',
     trendData: parsedIdea.trendData || [
-      { date: '2022', value: 20 }, 
-      { date: '2023', value: 40 }, 
-      { date: '2024', value: 80 }, 
-      { date: '2025', value: 100 }, 
-      { date: '2026', value: 90 }
+      { date: '2022', value: randomTrendBase }, 
+      { date: '2023', value: randomTrendBase + 20 }, 
+      { date: '2024', value: randomTrendBase + 50 }, 
+      { date: '2025', value: randomTrendBase + 80 }, 
+      { date: '2026', value: randomTrendBase + 60 }
     ],
     kpi: parsedIdea.kpi || {
        opportunity: { score: 8, label: 'High' },
@@ -51,8 +62,12 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
     },
     businessFit: parsedIdea.businessFit || {
         revenuePotential: '$$',
+        revenuePotentialDescription: 'Moderate revenue potential with standard subscription models.',
         executionDifficulty: 5,
-        goToMarket: 5
+        executionDifficultyDescription: 'Standard development complexity.',
+        goToMarket: 5,
+        goToMarketDescription: 'Requires standard social media marketing.',
+        founderFitDescription: 'Generalist founder with some industry knowledge.'
     },
     sections: parsedIdea.sections || {
         offer: [],
@@ -97,6 +112,8 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
       "description": "String (2 paragraphs selling the vision)",
       "tags": ["String", "String"],
       "trendKeyword": "String (The main search term)",
+      "trendVolume": "String (Estimate monthly search volume, e.g. '12.5K')",
+      "trendGrowth": "String (Estimate YoY growth, e.g. '+150%')",
       "trendData": [{ "date": "String", "value": Number }], // 5 points representing last 5 years
       "kpi": {
         "opportunity": { "score": Number (1-10), "label": "String" },
@@ -106,8 +123,12 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
       },
       "businessFit": {
         "revenuePotential": "String (e.g. $$$)",
+        "revenuePotentialDescription": "String (1 sentence explaining the revenue model and scale)",
         "executionDifficulty": Number (1-10),
-        "goToMarket": Number (1-10)
+        "executionDifficultyDescription": "String (1 sentence explaining the main technical or operational hurdle)",
+        "goToMarket": Number (1-10),
+        "goToMarketDescription": "String (1 sentence explaining the key distribution channel)",
+        "founderFitDescription": "String (1 sentence describing the ideal founder profile)"
       },
       "sections": {
         "offer": [
@@ -133,7 +154,8 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
       }
     }
     
-    Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps: Lead Magnet, Frontend Offer, Core Offer, Continuity Program, Backend Offer.
+    Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps.
+    Ensure 'trendData' has realistic values showing the trend trajectory.
   `;
 
   try {
@@ -181,6 +203,8 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       "description": "String (2 paragraphs selling the vision based on user input + market data)",
       "tags": ["String", "String"],
       "trendKeyword": "String (The main search term related to this idea)",
+      "trendVolume": "String (Estimate monthly search volume, e.g. '12.5K')",
+      "trendGrowth": "String (Estimate YoY growth, e.g. '+150%')",
       "trendData": [{ "date": "String", "value": Number }], // 5 points representing last 5 years of the related trend
       "kpi": {
         "opportunity": { "score": Number (1-10), "label": "String" },
@@ -190,8 +214,12 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       },
       "businessFit": {
         "revenuePotential": "String (e.g. $$$)",
+        "revenuePotentialDescription": "String (1 sentence explaining the revenue model and scale)",
         "executionDifficulty": Number (1-10),
-        "goToMarket": Number (1-10)
+        "executionDifficultyDescription": "String (1 sentence explaining the main technical or operational hurdle)",
+        "goToMarket": Number (1-10),
+        "goToMarketDescription": "String (1 sentence explaining the key distribution channel)",
+        "founderFitDescription": "String (1 sentence describing the ideal founder profile)"
       },
       "sections": {
         "offer": [
@@ -217,7 +245,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       }
     }
     
-    Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps: Lead Magnet, Frontend Offer, Core Offer, Continuity Program, Backend Offer.
+    Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps.
   `;
 
   const parts: Part[] = [{ text: prompt }];
@@ -277,6 +305,7 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
     config: {
       systemInstruction: systemInstruction,
       temperature: 0.7,
+      tools: [{ googleSearch: {} }]
     }
   });
 };
@@ -284,10 +313,11 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
 /**
  * Generates specific assets or analysis for an idea (Founder Fit, Ad Creatives, etc.)
  */
-export const generateArtifact = async (idea: BusinessIdea, type: 'founder-fit' | 'ad-creative' | 'brand-package' | 'landing-page'): Promise<string> => {
+export const generateArtifact = async (idea: BusinessIdea, type: string): Promise<string> => {
   const modelId = 'gemini-3-pro-preview';
   let prompt = '';
 
+  // Handle specific known types first for optimized prompting
   switch(type) {
     case 'founder-fit':
       prompt = `Analyze the "Founder Fit" (Right for You analysis) for the following business idea: "${idea.title}". 
@@ -305,7 +335,7 @@ export const generateArtifact = async (idea: BusinessIdea, type: 'founder-fit' |
       Format the output as a clean Markdown summary with bold headings.`;
       break;
 
-    case 'ad-creative':
+    case 'ad-creatives':
       prompt = `Generate 3 high-converting Facebook/Instagram ad creatives for: "${idea.title}".
       
       Target Audience: People interested in ${idea.trendKeyword}.
@@ -348,6 +378,45 @@ export const generateArtifact = async (idea: BusinessIdea, type: 'founder-fit' |
       
       Format as Markdown.`;
       break;
+
+    case 'coding-prompts':
+      prompt = `Act as a Senior Solutions Architect and Full Stack Developer. 
+      Create a comprehensive "Master System Prompt" that the user can copy and paste into an Advanced AI Coding Agent (specifically **Cursor Composer**, **Windsurf**, or **Bolt.new**) to build the complete MVP for this idea.
+      
+      Idea Title: "${idea.title}"
+      Idea Description: ${idea.description}
+      Value Ladder (Features): ${JSON.stringify(idea.sections.offer)}
+      
+      Your Output must be a single, massive Markdown code block containing the prompt.
+      
+      The System Prompt inside the code block should include:
+      1. **Role Definition**: "Act as a Senior React/Next.js Developer..."
+      2. **Tech Stack**: Enforce usage of Next.js 14, TailwindCSS, Lucide React, and Supabase (if needed).
+      3. **Project Structure**: Briefly outline the folder structure.
+      4. **Step-by-Step Implementation Plan**: 
+         - Phase 1: Setup & Scaffolding
+         - Phase 2: Core UI Components (Landing Page, Dashboard)
+         - Phase 3: Logic Integration
+      5. **Design System**: Instructions to use a clean, modern, minimalist aesthetic (like the Vercel style).
+      
+      Wrap the ENTIRE prompt in a single code block for easy copying.`;
+      break;
+      
+    default:
+      // Dynamic handler for all other templates (Content Calendar, PRD, etc.)
+      const humanReadableType = type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+      prompt = `Act as a world-class consultant. Create a "${humanReadableType}" for the business idea: "${idea.title}".
+      
+      Idea Description: ${idea.description}
+      Target Audience Keyword: ${idea.trendKeyword}
+      Value Ladder: ${JSON.stringify(idea.sections.offer)}
+      
+      Task:
+      Generate a comprehensive, professional, and actionable ${humanReadableType} specific to this business.
+      Use markdown formatting with clear headers, bullet points, and tables where appropriate.
+      Focus on high quality and practical utility.
+      `;
+      break;
   }
 
   try {
@@ -367,7 +436,7 @@ export const generateArtifact = async (idea: BusinessIdea, type: 'founder-fit' |
  */
 export const generateSectionDeepDive = async (
   idea: BusinessIdea, 
-  section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket'
+  section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket' | 'communitySignals'
 ): Promise<string> => {
   const modelId = 'gemini-3-pro-preview';
   let prompt = '';
@@ -468,6 +537,21 @@ export const generateSectionDeepDive = async (
       
       Format as a structured Markdown report.`;
       break;
+
+    case 'communitySignals':
+      prompt = `Provide a detailed "Community Signals & Social Listening" breakdown for: "${idea.title}".
+      
+      Trend Keyword: ${idea.trendKeyword}
+      Current Signals: ${JSON.stringify(idea.communitySignals)}
+      
+      Task:
+      1. **Reddit Deep Dive**: Identify specific subreddits (e.g. r/SaaS, r/${idea.trendKeyword.replace(/\s/g, '')}) and summarize the sentiment around this problem.
+      2. **Facebook/Meta Groups**: Describe the type of groups where this target audience hangs out.
+      3. **Content Angles**: Suggest 3 discussion starters or viral posts to test demand in these communities.
+      4. **Influencer/Channel targets**: Identify types of influencers (Youtube/TikTok) discussing this.
+      
+      Format as a structured Markdown report.`;
+      break;
   }
 
   try {
@@ -527,53 +611,19 @@ export const generateFullAnalysis = async (idea: BusinessIdea): Promise<string> 
 
 /**
  * Creates a Chat session for the Whiteboard that is context-aware of all nodes.
+ * Uses Gemini 2.5 Flash for reliable multimodal + tool use.
  */
 export const createWhiteboardChatSession = (nodes: WhiteboardNode[]): Chat => {
   const modelId = 'gemini-2.5-flash';
 
   const systemInstruction = `
     You are an advanced AI Creative Assistant integrated into a Whiteboard environment.
-    The user has placed several items (Context Nodes) on the board, including text, images, audio recordings, videos, or links (including TikTok/Instagram).
-
-    Your goal is to assist with Creative Workflows such as:
-    1. **Viral Content Creation**: Writing scripts for TikTok/Reels based on the user's notes or video inputs.
-    2. **Content Repurposing**: Summarizing long Youtube videos or PDF documents into blog posts or tweets.
-    3. **Brainstorming**: Connecting ideas between different nodes to find new angles.
-    4. **Analysis**: Answering questions about the uploaded images or audio.
-
-    Always reference the specific nodes you are using in your answer (e.g., "Based on the audio clip 'Voice Memo 1'...").
-    Be creative, practical, and concise. If the user asks to write a script, use a proper script format.
-  `;
-  
-  return ai.chats.create({
-    model: modelId,
-    config: {
-      systemInstruction: systemInstruction,
-      temperature: 0.8, // Slightly higher for creativity
-    }
-  });
-};
-
-/**
- * Helper to convert whiteboard nodes into parts for a prompt.
- */
-export const convertNodesToParts = (nodes: WhiteboardNode[]): Part[] => {
-    const parts: Part[] = [];
+    The user has placed several items (Context Nodes) on the board.
     
-    // Add a text summary of what is on the board first
-    const manifest = nodes.map((n, i) => `Node ${i+1} [${n.type}]: ${n.title || 'Untitled'}`).join('\n');
-    parts.push({ text: `Current Whiteboard Context (Manifest):\n${manifest}\n\nContent Details:` });
-
-    for (const node of nodes) {
-        if (node.type === 'text' || node.type === 'link' || node.type === 'youtube') {
-            parts.push({ text: `\n--- Start Node (${node.type}): ${node.title} ---\n${node.content}\n--- End Node ---\n` });
-        } else if (node.type === 'image' || node.type === 'video' || node.type === 'audio' || node.type === 'pdf') {
-            if (node.content && node.mimeType) {
-                parts.push({ text: `\n--- Start Node (${node.type}): ${node.title} ---` });
-                parts.push({ inlineData: { mimeType: node.mimeType, data: node.content } });
-                parts.push({ text: `--- End Node ---\n` });
-            }
-        }
-    }
-    return parts;
-};
+    **Your Capabilities:**
+    1. **Multimodal Vision**: You can "see" images and "watch" videos uploaded to the board.
+       - For videos, analyze motion, emotion, transitions, and visual details frame-by-frame.
+       - If the user asks about a video, describe what is happening visually in detail.
+    2. **YouTube Analysis**: For YouTube links, you cannot "see" the video pixels directly due to browser security. 
+       - Instead, use your Google Search tools to find transcripts, summaries, or metadata about the video ID.
+       -

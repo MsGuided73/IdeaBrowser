@@ -50,6 +50,12 @@ const App: React.FC = () => {
     });
   };
 
+  const handleUpdateIdea = (updatedIdea: BusinessIdea) => {
+    setCurrentIdea(updatedIdea);
+    // If this idea exists in 'My Ideas', update it there too
+    setMyIdeas(prev => prev.map(i => i.id === updatedIdea.id ? updatedIdea : i));
+  };
+
   return (
     <div className="min-h-screen flex flex-col font-sans text-slate-800">
       <Header onNavigate={setCurrentView} />
@@ -90,6 +96,7 @@ const App: React.FC = () => {
               idea={currentIdea} 
               loading={loading} 
               onSaveIdea={handleSaveIdea}
+              onUpdateIdea={handleUpdateIdea}
               isSaved={myIdeas.some(i => i.id === currentIdea.id)}
             />
             

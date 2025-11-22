@@ -1,3 +1,4 @@
+
 import { BusinessIdea, MarketTrend, DraftIdea } from './types';
 
 export const INITIAL_IDEA: BusinessIdea = {
@@ -8,6 +9,8 @@ export const INITIAL_IDEA: BusinessIdea = {
   description: 'Hydroponic growers waste hours each week on manual testing, adjusting nutrients, and dealing with unreliable sensors. One incorrect nutrient mix risks killing an entire crop. HydroSense combines precision sensors with machine learning to automatically balance nutrient solutions, learn your specific crops, detect problems early, and alert you only when intervention is necessary.\n\nPriced at $150-$500 monthly per greenhouse based on size and complexity, the platform integrates with existing systems and provides a real-time dashboard of your crop conditions. No daily manual testing, no questioning sensor accuracy, no stressing about nutrient levels.',
   priceRange: '$150-$500/mo',
   trendKeyword: 'Hydroponic nutrient solution',
+  trendVolume: '6.6K',
+  trendGrowth: '+128%',
   relatedKeywords: [
     'Hydroponic nutrient solution',
     'Hydroponic nutrients',
@@ -32,8 +35,12 @@ export const INITIAL_IDEA: BusinessIdea = {
   },
   businessFit: {
     revenuePotential: '$$$',
+    revenuePotentialDescription: '$1M-$10M ARR potential with current market growth',
     executionDifficulty: 8,
+    executionDifficultyDescription: 'Complex IoT system for agriculture environments',
     goToMarket: 8,
+    goToMarketDescription: 'Strong market signals with clear channels',
+    founderFitDescription: 'Ideal for founders with IoT and Agritech experience',
   },
   sections: {
     offer: [
@@ -99,6 +106,8 @@ export const GOLF_IDEA: BusinessIdea = {
   description: 'This business idea focuses on creating a user-friendly app that simplifies the process of booking and managing golf tee times by aggregating real-time reservations and exclusive deals, empowering tech-savvy golfers with convenience while boosting course management efficiency and revenue.',
   priceRange: 'Freemium',
   trendKeyword: 'Golf Tee Time Booking',
+  trendVolume: '12.5K',
+  trendGrowth: '+45%',
   relatedKeywords: ['Tee time booking', 'Golf reservations', 'Golf course management'],
   trendData: [
     { date: 'Jan', value: 30 },
@@ -115,8 +124,12 @@ export const GOLF_IDEA: BusinessIdea = {
   },
   businessFit: {
     revenuePotential: '$$$',
+    revenuePotentialDescription: 'Significant revenue from booking fees and premium subscriptions.',
     executionDifficulty: 8,
+    executionDifficultyDescription: 'Requires integration with legacy golf course software.',
     goToMarket: 8,
+    goToMarketDescription: 'Partner with courses and influencers.',
+    founderFitDescription: 'Best for founders with golf industry connections.',
   },
   sections: {
     offer: [

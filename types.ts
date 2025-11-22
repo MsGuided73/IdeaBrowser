@@ -23,6 +23,8 @@ export interface BusinessIdea {
   description: string;
   priceRange: string;
   trendKeyword: string;
+  trendVolume?: string;
+  trendGrowth?: string;
   relatedKeywords?: string[];
   trendData: TrendPoint[];
   kpi: {
@@ -33,8 +35,12 @@ export interface BusinessIdea {
   };
   businessFit: {
     revenuePotential: string;
+    revenuePotentialDescription?: string;
     executionDifficulty: number; // 1-10
+    executionDifficultyDescription?: string;
     goToMarket: number; // 1-10
+    goToMarketDescription?: string;
+    founderFitDescription?: string;
   };
   sections: {
     offer: ValueLadderStep[];
