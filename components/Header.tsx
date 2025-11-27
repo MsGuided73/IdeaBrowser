@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
 import { User, ChevronDown, Sparkles, Database, TrendingUp, Users, LayoutGrid } from 'lucide-react';
-import { SacredGeometry } from './SacredGeometry';
+import { Logo } from './Logo';
 import { ViewState } from '../types';
 
 interface HeaderProps {
@@ -37,10 +37,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
     <header className="border-b border-slate-100 sticky top-0 z-50 bg-white/90 backdrop-blur-sm">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between relative">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => handleNav('home')}>
-          <div className="w-8 h-8">
-            <SacredGeometry className="w-full h-full" />
-          </div>
-          <span className="font-bold text-xl tracking-tight text-slate-900">ideabrowser.com</span>
+          <Logo />
         </div>
 
         <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600 h-full">
@@ -147,8 +144,10 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
         </div>
       </div>
       
-      <div className="bg-slate-50 py-2 text-center text-xs text-slate-500 border-b border-slate-100">
-        ✨ The #1 Software to Spot Trends and Startup Ideas Worth Building. <button className="ml-2 bg-slate-800 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Join</button>
+      <div className="bg-slate-50 py-2 text-center text-xs text-slate-500 border-b border-slate-100 flex justify-center items-center gap-2">
+        <Sparkles size={12} className="text-green-500" />
+        <span>turn your ideas into money</span>
+        <button className="ml-2 bg-slate-800 text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">Join</button>
       </div>
     </header>
   );

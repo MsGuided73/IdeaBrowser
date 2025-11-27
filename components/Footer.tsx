@@ -1,5 +1,6 @@
+
 import React from 'react';
-import { SacredGeometry } from './SacredGeometry';
+import { Logo } from './Logo';
 
 interface FooterProps {
   onNavigate?: (page: 'home' | 'my-ideas') => void;
@@ -12,13 +13,10 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
              <div>
                 <div className="flex items-center gap-2 mb-4">
-                    <div className="w-6 h-6">
-                        <SacredGeometry className="w-full h-full" />
-                    </div>
-                    <span className="font-bold text-slate-900">ideabrowser.com</span>
+                    <Logo />
                 </div>
                 <p className="text-xs text-slate-500 leading-relaxed">
-                    Get ideas for profitable startups, trending keywords, and go-to-market tactics, powered by data.
+                    Turn your ideas into money with real-time market trends, startup ideas, and go-to-market tactics.
                 </p>
              </div>
              
@@ -52,7 +50,7 @@ export const Footer: React.FC<FooterProps> = ({ onNavigate }) => {
           </div>
           
           <div className="border-t border-slate-100 mt-12 pt-8 flex flex-col md:flex-row justify-between text-[10px] text-slate-400">
-              <p>© 2025 Ideabrowser. All rights reserved.</p>
+              <p>© 2025 BizWiz. All rights reserved.</p>
               <div className="flex gap-4 mt-2 md:mt-0">
                   <a href="#">Terms and Conditions</a>
                   <a href="#">Privacy Policy</a>

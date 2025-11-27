@@ -13,10 +13,10 @@ export const SacredGeometry: React.FC<SacredGeometryProps> = ({ className }) => 
         style={{ filter: 'drop-shadow(0 0 2px rgba(250, 204, 21, 0.5))' }}
       >
         <defs>
-          <linearGradient id="gold-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#FDE047" />
-            <stop offset="50%" stopColor="#F59E0B" />
-            <stop offset="100%" stopColor="#D97706" />
+          <linearGradient id="multi-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#154360" />
+            <stop offset="50%" stopColor="#F7DC6F" />
+            <stop offset="100%" stopColor="#D35400" />
           </linearGradient>
         </defs>
         
@@ -24,7 +24,7 @@ export const SacredGeometry: React.FC<SacredGeometryProps> = ({ className }) => 
         <path 
           d="M50 15 L85 75 H15 Z" 
           fill="none" 
-          stroke="url(#gold-gradient)" 
+          stroke="url(#multi-gradient)" 
           strokeWidth="2"
           className="opacity-90"
         />
@@ -33,7 +33,7 @@ export const SacredGeometry: React.FC<SacredGeometryProps> = ({ className }) => 
         <path 
           d="M50 85 L15 25 H85 Z" 
           fill="none" 
-          stroke="url(#gold-gradient)" 
+          stroke="url(#multi-gradient)" 
           strokeWidth="2"
           className="opacity-90"
         />

@@ -90,6 +90,8 @@ export interface WhiteboardNode {
   title: string;
   mimeType?: string; // for files
   fileName?: string;
+  color?: string; // New: For sticky notes or organization
+  groupId?: string; // New: For grouping nodes together
 }
 
 export type ViewState = 'home' | 'my-ideas' | 'whiteboard';

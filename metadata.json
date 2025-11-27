@@ -1,6 +1,6 @@
 {
-  "name": "IdeaBrowser - AI Trend Hunter",
-  "description": "Daily business ideas powered by real-time market trends and Gemini AI.",
+  "name": "BizWiz - Turn Ideas Into Money",
+  "description": "Daily business ideas and market trends powered by Gemini AI.",
   "requestFramePermissions": [
     "camera",
     "microphone"

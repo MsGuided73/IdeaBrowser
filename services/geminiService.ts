@@ -1,5 +1,5 @@
 
-import { GoogleGenAI, Chat, Part } from '@google/genai';
+import { GoogleGenAI, Chat, Part, FunctionDeclaration, Type } from '@google/genai';
 import { BusinessIdea, WhiteboardNode } from '../types';
 
 const apiKey = process.env.API_KEY;
@@ -47,6 +47,7 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
     trendKeyword: parsedIdea.trendKeyword || 'Market Trend',
     trendVolume: parsedIdea.trendVolume || '5.5K',
     trendGrowth: parsedIdea.trendGrowth || '+85%',
+    relatedKeywords: parsedIdea.relatedKeywords || [parsedIdea.trendKeyword || 'Startup Idea'],
     trendData: parsedIdea.trendData || [
       { date: '2022', value: randomTrendBase }, 
       { date: '2023', value: randomTrendBase + 20 }, 
@@ -87,7 +88,8 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
 }
 
 export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
-  const modelId = 'gemini-2.5-flash';
+  // Upgraded to gemini-3-pro-preview for deeper, world-class analysis
+  const modelId = 'gemini-3-pro-preview';
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -97,21 +99,23 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
   });
 
   const prompt = `
-    Act as a world-class venture capitalist and trend analyst.
+    Act as a world-class venture capitalist, product strategist, and trend analyst.
     It is currently ${today}.
     
     Your task:
     1. Use Google Search to identify a BREAKOUT trend or rising problem in the last 24-48 hours. Focus on niche B2B SaaS, Eco-tech, or AI productivity.
     2. Synthesize a complete business idea ("The Idea of Tomorrow") that solves this new problem.
-    3. Create a detailed 5-step Value Ladder strategy for this business.
-    4. Return the result as a valid JSON object wrapped in a markdown code block.
+    3. Conduct a keyword analysis to find 4-6 variations of the search term (Long-tail, High Intent, Question-based).
+    4. Search for community validation on Reddit, Facebook, and YouTube to populate the 'communitySignals' section.
+    5. Create a detailed 5-step Value Ladder strategy.
     
     The JSON must strictly match this schema:
     {
       "title": "String (Catchy startup name)",
-      "description": "String (2 paragraphs selling the vision)",
+      "description": "String (3-4 paragraphs selling the vision, detailed and robust)",
       "tags": ["String", "String"],
-      "trendKeyword": "String (The main search term)",
+      "trendKeyword": "String (The main breakout search term)",
+      "relatedKeywords": ["String", "String", "String", "String", "String"],
       "trendVolume": "String (Estimate monthly search volume, e.g. '12.5K')",
       "trendGrowth": "String (Estimate YoY growth, e.g. '+150%')",
       "trendData": [{ "date": "String", "value": Number }], // 5 points representing last 5 years
@@ -123,12 +127,12 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
       },
       "businessFit": {
         "revenuePotential": "String (e.g. $$$)",
-        "revenuePotentialDescription": "String (1 sentence explaining the revenue model and scale)",
+        "revenuePotentialDescription": "String (1-2 sentences explaining the revenue model and scale)",
         "executionDifficulty": Number (1-10),
-        "executionDifficultyDescription": "String (1 sentence explaining the main technical or operational hurdle)",
+        "executionDifficultyDescription": "String (1-2 sentences explaining the main technical or operational hurdle)",
         "goToMarket": Number (1-10),
-        "goToMarketDescription": "String (1 sentence explaining the key distribution channel)",
-        "founderFitDescription": "String (1 sentence describing the ideal founder profile)"
+        "goToMarketDescription": "String (1-2 sentences explaining the key distribution channel)",
+        "founderFitDescription": "String (1-2 sentences describing the ideal founder profile)"
       },
       "sections": {
         "offer": [
@@ -141,21 +145,22 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
               "goal": "String (The strategic goal of this step)"
             }
         ],
-        "whyNow": "String",
-        "proofAndSignals": "String",
-        "marketGap": "String",
-        "executionPlan": "String"
+        "whyNow": "String (Detailed analysis of timing, 3-4 sentences minimum. Why is this urgent?)",
+        "proofAndSignals": "String (Specific examples of market validation and competitors, 3-4 sentences minimum)",
+        "marketGap": "String (Clear explanation of the opportunity and blue ocean strategy, 3-4 sentences minimum)",
+        "executionPlan": "String (Strategic overview of first steps, 3-4 sentences minimum)"
       },
       "communitySignals": {
-        "reddit": "String",
-        "facebook": "String",
-        "youtube": "String",
+        "reddit": "String (Mention specific subreddit names and member counts found via search)",
+        "facebook": "String (Mention specific group types or names)",
+        "youtube": "String (Mention channel niches or video topics)",
         "other": "String"
       }
     }
     
     Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps.
-    Ensure 'trendData' has realistic values showing the trend trajectory.
+    Ensure 'relatedKeywords' contains at least 4-6 distinct variations.
+    **IMPORTANT**: Populate the 'sections' with robust, multi-sentence analysis. Do not use short placeholders.
   `;
 
   try {
@@ -182,30 +187,30 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
 };
 
 export const analyzeUserIdea = async (userDescription: string, media?: { data: string, mimeType: string }): Promise<BusinessIdea> => {
-  // Use gemini-3-pro-preview if media is present for better multimodal understanding, or generally for complex analysis
   const modelId = 'gemini-3-pro-preview';
 
   const prompt = `
-    Act as a world-class venture capitalist and trend analyst.
+    Act as a world-class venture capitalist and Product UX Expert.
     
     ${media ? 'Analyze the attached image/video and the context below.' : 'Analyze the following idea description.'}
     User's Idea Concept: "${userDescription}"
 
     Your task:
     1. Analyze this specific idea. Use Google Search to find real-time trends, search volume data, and market signals that validate (or challenge) this specific idea.
-    2. Synthesize a complete business analysis for this idea.
-    3. Create a detailed 5-step Value Ladder strategy for this business.
-    4. Return the result as a valid JSON object wrapped in a markdown code block.
+    2. Identify 4-6 keyword variations (Long-tail, Problem-Aware, Solution-Aware) that users are actually searching for.
+    3. Synthesize a complete business analysis.
+    4. Create a detailed 5-step Value Ladder strategy.
     
     The JSON must strictly match this schema:
     {
       "title": "String (Refine the user's title to be catchy)",
-      "description": "String (2 paragraphs selling the vision based on user input + market data)",
+      "description": "String (3-4 paragraphs selling the vision based on user input + market data. Make it robust.)",
       "tags": ["String", "String"],
       "trendKeyword": "String (The main search term related to this idea)",
+      "relatedKeywords": ["String", "String", "String", "String", "String"],
       "trendVolume": "String (Estimate monthly search volume, e.g. '12.5K')",
       "trendGrowth": "String (Estimate YoY growth, e.g. '+150%')",
-      "trendData": [{ "date": "String", "value": Number }], // 5 points representing last 5 years of the related trend
+      "trendData": [{ "date": "String", "value": Number }], 
       "kpi": {
         "opportunity": { "score": Number (1-10), "label": "String" },
         "problem": { "score": Number (1-10), "label": "String" },
@@ -214,12 +219,12 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       },
       "businessFit": {
         "revenuePotential": "String (e.g. $$$)",
-        "revenuePotentialDescription": "String (1 sentence explaining the revenue model and scale)",
+        "revenuePotentialDescription": "String (1-2 sentences explaining the revenue model and scale)",
         "executionDifficulty": Number (1-10),
-        "executionDifficultyDescription": "String (1 sentence explaining the main technical or operational hurdle)",
+        "executionDifficultyDescription": "String (1-2 sentences explaining the main technical or operational hurdle)",
         "goToMarket": Number (1-10),
-        "goToMarketDescription": "String (1 sentence explaining the key distribution channel)",
-        "founderFitDescription": "String (1 sentence describing the ideal founder profile)"
+        "goToMarketDescription": "String (1-2 sentences explaining the key distribution channel)",
+        "founderFitDescription": "String (1-2 sentences describing the ideal founder profile)"
       },
       "sections": {
         "offer": [
@@ -232,20 +237,21 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
               "goal": "String (The strategic goal of this step)"
             }
         ],
-        "whyNow": "String",
-        "proofAndSignals": "String",
-        "marketGap": "String",
-        "executionPlan": "String"
+        "whyNow": "String (Detailed analysis of timing, 3-4 sentences. Why now?)",
+        "proofAndSignals": "String (Specific examples of market validation and existing solutions, 3-4 sentences)",
+        "marketGap": "String (Clear explanation of the opportunity, 3-4 sentences)",
+        "executionPlan": "String (Strategic overview, 3-4 sentences)"
       },
       "communitySignals": {
-        "reddit": "String",
-        "facebook": "String",
-        "youtube": "String",
+        "reddit": "String (Mention specific subreddit names)",
+        "facebook": "String (Mention specific group types)",
+        "youtube": "String (Mention channel niches)",
         "other": "String"
       }
     }
     
     Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps.
+    **IMPORTANT**: Populate the 'sections' with robust, multi-sentence analysis.
   `;
 
   const parts: Part[] = [{ text: prompt }];
@@ -276,10 +282,6 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
   }
 };
 
-/**
- * Creates a chat session specific to a Business Idea.
- * The AI is primed with the full context of the idea to answer questions.
- */
 export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
   const modelId = 'gemini-3-pro-preview';
   
@@ -290,14 +292,13 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
     Here is the full context and research data for this idea:
     ${JSON.stringify(idea, null, 2)}
 
-    Your goal is to help the user understand this business opportunity, answer questions about execution, competitors, market size, or risks.
+    Your goal is to help the user understand this business opportunity.
     
-    Guidelines:
-    1. Be encouraging but realistic.
-    2. Use the provided data (Trend Data, KPIs, Business Fit) to back up your answers.
-    3. If the user asks for something not in the data (like specific competitor names not listed), use your general knowledge to provide examples.
-    4. Keep answers concise and actionable.
-    5. If asked about "Founder Fit", analyze the skills needed based on the 'executionDifficulty'.
+    **CRITICAL GUIDELINES for UI/UX & HUMAN-CENTRIC DESIGN:**
+    1. If the user asks about product features, ALWAYS prioritize "Cognitive Load Reduction". Suggest interfaces that are calm, clear, and avoid overwhelming the user.
+    2. Suggest "Progressive Disclosure" of complex features.
+    3. Focus on "Positive Feedback Loops" - how does the app reward the user for taking action?
+    4. Use the provided data (Trend Data, KPIs, Business Fit) to back up your answers.
   `;
 
   return ai.chats.create({
@@ -310,111 +311,115 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
   });
 };
 
-/**
- * Generates specific assets or analysis for an idea (Founder Fit, Ad Creatives, etc.)
- */
 export const generateArtifact = async (idea: BusinessIdea, type: string): Promise<string> => {
   const modelId = 'gemini-3-pro-preview';
   let prompt = '';
 
-  // Handle specific known types first for optimized prompting
+  // Human-Centric Prompt Engineering
+  const designPhilosophy = `
+    **Design Philosophy:**
+    - **Human-Centric:** Prioritize the emotional state of the user. The tool should feel helpful, not demanding.
+    - **Zero Cognitive Overload:** Break complex tasks into small, digestible steps.
+    - **Calm UI:** suggest clean whitespace, clear typography, and vibrant but not shouting accent colors.
+    - **Accessibility First:** Ensure high contrast and screen reader friendliness.
+  `;
+
   switch(type) {
     case 'founder-fit':
-      prompt = `Analyze the "Founder Fit" (Right for You analysis) for the following business idea: "${idea.title}". 
-      
+      prompt = `Analyze the "Founder Fit" for: "${idea.title}". 
       Execution Difficulty: ${idea.businessFit.executionDifficulty}/10
-      Description: ${idea.description}
-      Execution Plan: ${idea.sections.executionPlan}
-
-      Task:
-      1. Identify the top 3 critical hard skills required (e.g., Sales, Coding, Logistics).
-      2. Identify the top 3 soft skills required (e.g., Patience, Networking, Leadership).
-      3. Estimate the weekly time commitment for a solo founder in the first 3 months.
-      4. Assess the risk profile (Financial risk vs Time risk).
       
-      Format the output as a clean Markdown summary with bold headings.`;
+      Task:
+      1. Critical Hard Skills (Top 3)
+      2. Critical Soft Skills (Top 3 - Focus on resilience and empathy)
+      3. Weekly Time Commitment (Realistic estimate for solo founder)
+      4. Risk Profile Analysis
+      
+      Format as Markdown.`;
       break;
 
     case 'ad-creatives':
-      prompt = `Generate 3 high-converting Facebook/Instagram ad creatives for: "${idea.title}".
+      prompt = `Generate 3 Human-Centric Ad Creatives for: "${idea.title}".
+      Target Audience: People searching for ${idea.relatedKeywords?.join(', ') || idea.trendKeyword}.
       
-      Target Audience: People interested in ${idea.trendKeyword}.
-      Value Prop: ${idea.description}
+      ${designPhilosophy}
 
       Task:
-      For each ad, provide:
-      - **Headline**: (Punchy, under 40 chars)
-      - **Primary Text**: (Persuasive, focusing on the pain point "${idea.kpi.problem.label}")
-      - **Visual Description**: (What should the image/video show?)
+      For each ad, focus on the *emotional relief* the solution provides, not just features.
+      1. **Headline**: (Punchy, under 40 chars)
+      2. **Primary Text**: (Empathy-driven, focusing on the pain point "${idea.kpi.problem.label}")
+      3. **Visual Description**: (Describe an image/video that feels authentic, not stock-photo-like)
       
-      Format as a numbered list in Markdown.`;
+      Format as Markdown.`;
       break;
 
     case 'brand-package':
-      prompt = `Create a Mini Brand Identity Package for: "${idea.title}".
+      prompt = `Create a Modern Brand Identity Package for: "${idea.title}".
       
-      Context: ${idea.description}
+      ${designPhilosophy}
 
       Task:
-      1. **Brand Personality**: (3 adjectives)
-      2. **Color Palette**: (3 hex codes with reasoning)
-      3. **Taglines**: (3 options: Descriptive, Emotional, Short)
-      4. **Logo Concept**: (Description of a simple, memorable logo)
+      1. **Brand Personality**: (e.g., "The Empathetic Expert", "The Cheerful Helper")
+      2. **Color Palette**: (3 hex codes. Focus on colors that reduce eye strain while maintaining vibrancy)
+      3. **Typography**: Suggest font pairings that are highly legible.
+      4. **Voice & Tone**: How to speak to the user without sounding robotic.
       
       Format as Markdown.`;
       break;
 
     case 'landing-page':
-      prompt = `Write the Hero Section copy for a landing page for: "${idea.title}".
+      prompt = `Write the Landing Page Copy for: "${idea.title}".
       
-      Context: ${idea.description}
+      ${designPhilosophy}
 
       Task:
-      Provide:
-      1. **H1 Headline**: (Value driven, clear)
-      2. **Subheadline**: (Explains how it works + benefit)
-      3. **Call to Action (CTA)**: (Low friction button text)
-      4. **Social Proof Line**: (e.g. "Join X waiting list")
+      1. **Hero Headline**: Focus on the transformation/benefit, not the tool.
+      2. **Subheadline**: clear, jargon-free explanation.
+      3. **Benefit Bullets**: 3 key benefits that reduce user anxiety or effort.
+      4. **Social Proof Section**: Placeholder text for trust signals.
+      5. **CTA**: Low-friction text (e.g., "Start for free" instead of "Register now").
       
       Format as Markdown.`;
       break;
 
     case 'coding-prompts':
-      prompt = `Act as a Senior Solutions Architect and Full Stack Developer. 
-      Create a comprehensive "Master System Prompt" that the user can copy and paste into an Advanced AI Coding Agent (specifically **Cursor Composer**, **Windsurf**, or **Bolt.new**) to build the complete MVP for this idea.
+      prompt = `Act as a Senior Product Designer & Principal Software Architect.
+      Create a comprehensive "Master System Prompt" to build the MVP for: "${idea.title}".
       
-      Idea Title: "${idea.title}"
-      Idea Description: ${idea.description}
-      Value Ladder (Features): ${JSON.stringify(idea.sections.offer)}
+      **CRITICAL GOAL**: The resulting app must be a masterpiece of Human-Centric Design.
       
-      Your Output must be a single, massive Markdown code block containing the prompt.
+      Context:
+      Description: ${idea.description}
+      Value Ladder: ${JSON.stringify(idea.sections.offer)}
+      
+      Your Output must be a single, massive Markdown code block.
       
       The System Prompt inside the code block should include:
-      1. **Role Definition**: "Act as a Senior React/Next.js Developer..."
-      2. **Tech Stack**: Enforce usage of Next.js 14, TailwindCSS, Lucide React, and Supabase (if needed).
-      3. **Project Structure**: Briefly outline the folder structure.
-      4. **Step-by-Step Implementation Plan**: 
-         - Phase 1: Setup & Scaffolding
-         - Phase 2: Core UI Components (Landing Page, Dashboard)
-         - Phase 3: Logic Integration
-      5. **Design System**: Instructions to use a clean, modern, minimalist aesthetic (like the Vercel style).
+      1. **Role Definition**: "Act as a Senior React Developer with a specialization in Accessibility (a11y) and UX..."
+      2. **Tech Stack**: Next.js 14, TailwindCSS, Lucide React, Supabase.
+      3. **UX/UI Guidelines (Mandatory)**:
+         - **Cognitive Load**: "Do not overwhelm the user. Use progressive disclosure for advanced features."
+         - **Visual Hierarchy**: "Use whitespace effectively to guide the eye. Avoid clutter."
+         - **Feedback**: "Every user action (click, save, error) must have immediate visual feedback (toast, spinner, transition)."
+         - **Empty States**: "Design helpful empty states that teach the user what to do next."
+      4. **Step-by-Step Implementation**:
+         - Phase 1: Scaffolding & Design System (Fonts, Colors, Reusable Components).
+         - Phase 2: Core Features (Focusing on the 'Core Offer' functionality).
+         - Phase 3: Polish & Micro-interactions (Framer Motion for smooth transitions).
+      5. **Project Structure**: Clean folder structure.
       
-      Wrap the ENTIRE prompt in a single code block for easy copying.`;
+      Wrap the ENTIRE prompt in a single code block.`;
       break;
       
     default:
-      // Dynamic handler for all other templates (Content Calendar, PRD, etc.)
       const humanReadableType = type.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
-      prompt = `Act as a world-class consultant. Create a "${humanReadableType}" for the business idea: "${idea.title}".
+      prompt = `Act as a world-class consultant. Create a "${humanReadableType}" for: "${idea.title}".
       
-      Idea Description: ${idea.description}
-      Target Audience Keyword: ${idea.trendKeyword}
-      Value Ladder: ${JSON.stringify(idea.sections.offer)}
+      ${designPhilosophy}
       
       Task:
-      Generate a comprehensive, professional, and actionable ${humanReadableType} specific to this business.
-      Use markdown formatting with clear headers, bullet points, and tables where appropriate.
-      Focus on high quality and practical utility.
+      Generate a comprehensive, professional, and actionable ${humanReadableType}.
+      Ensure the tone is encouraging and the advice reduces the founder's cognitive load by providing clear, step-by-step instructions.
       `;
       break;
   }
@@ -431,9 +436,6 @@ export const generateArtifact = async (idea: BusinessIdea, type: string): Promis
   }
 };
 
-/**
- * Generates a deep dive analysis for specific sections of the business idea.
- */
 export const generateSectionDeepDive = async (
   idea: BusinessIdea, 
   section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket' | 'communitySignals'
@@ -443,112 +445,59 @@ export const generateSectionDeepDive = async (
 
   switch(section) {
     case 'whyNow':
-      prompt = `Provide a deep dive analysis on "Why Now" for the business idea: "${idea.title}".
-      
-      Initial Context: ${idea.sections.whyNow}
-      Trend Keyword: ${idea.trendKeyword}
-
-      Task:
-      1. Analyze specific market events, technological shifts, or cultural changes in the last 6-12 months.
-      2. Explain the "Cost of Inaction" for potential customers.
-      3. Identify any regulatory or economic tailwinds.
-      
-      Format as a structured Markdown report.`;
+      prompt = `Analyze "Why Now" for: "${idea.title}".
+      Trend: ${idea.trendKeyword}
+      Task: Analyze market events, tech shifts, and cultural changes. Explain the "Cost of Inaction".`;
       break;
 
     case 'proofAndSignals':
       prompt = `Provide detailed "Proof & Signals" validation for: "${idea.title}".
-      
-      Initial Context: ${idea.sections.proofAndSignals}
-      
       Task:
-      1. Simulate a search for competitors and list 3 similar existing solutions and their weaknesses.
-      2. Identify specific online communities (subreddits, forums) where this problem is discussed.
-      3. List 3 "Proxy Metrics" that prove demand.
-      
-      Format as a structured Markdown report.`;
+      1. Use Google Search to find **real** existing competitors. List 3 specific names and their weaknesses.
+      2. Find **real** Reddit threads or forum discussions asking for this solution. Quote them if possible.
+      3. Identify proxy metrics (e.g. "Search volume for X has doubled").`;
       break;
 
     case 'marketGap':
-      prompt = `Analyze the "Market Gap" and Blue Ocean strategy for: "${idea.title}".
-      
-      Initial Context: ${idea.sections.marketGap}
-      
-      Task:
-      1. Map the current competitive landscape (Low End vs High End).
-      2. Define exactly where this idea sits in the gap.
-      3. Explain the "Unfair Advantage" this specific approach offers.
-      
-      Format as a structured Markdown report.`;
+      prompt = `Analyze the "Market Gap" for: "${idea.title}".
+      Task: Map the competitive landscape (Low End vs High End). Define the Blue Ocean. Explain the Unfair Advantage.`;
       break;
 
     case 'executionPlan':
-      prompt = `Create a detailed "30-60-90 Day Execution Plan" for: "${idea.title}".
-      
-      Initial Context: ${idea.sections.executionPlan}
-      Difficulty: ${idea.businessFit.executionDifficulty}/10
-      
+      prompt = `Create a "30-60-90 Day Execution Plan" for: "${idea.title}".
+      Focus on a "Low Stress, High Impact" approach to avoid founder burnout.
       Task:
-      1. **Days 1-30 (Validation)**: Steps to validate without code.
-      2. **Days 31-60 (MVP)**: Minimum feature set required to sell.
-      3. **Days 61-90 (Growth)**: Primary acquisition channel focus.
-      
-      Format as a structured Markdown report.`;
+      1. Days 1-30: Validation (No code).
+      2. Days 31-60: MVP (Core feature only).
+      3. Days 61-90: First 10 customers.`;
       break;
 
     case 'revenuePotential':
-      prompt = `Analyze the "Revenue Potential" for: "${idea.title}".
-      
-      Rated Potential: ${idea.businessFit.revenuePotential}
-      Price Range: ${idea.priceRange}
-      
-      Task:
-      1. Estimate the TAM (Total Addressable Market) and SAM (Serviceable Addressable Market) based on current trends.
-      2. Propose 3 specific monetization models (e.g. Subscription, Transactional, Licensing) suitable for this idea.
-      3. Calculate a hypothetical "Unit Economics" breakdown for one customer.
-      
-      Format as a structured Markdown report.`;
+      prompt = `Analyze "Revenue Potential" for: "${idea.title}".
+      Task: Estimate TAM/SAM. Propose 3 monetization models. Calculate Unit Economics.`;
       break;
 
     case 'executionDifficulty':
-      prompt = `Analyze the "Execution Difficulty" for: "${idea.title}".
-      
-      Difficulty Score: ${idea.businessFit.executionDifficulty}/10
-      Description: ${idea.description}
-      
-      Task:
-      1. Identify the biggest Technical Bottlenecks.
-      2. Identify the biggest Operational Challenges (Logistics, Staffing, Legal).
-      3. Suggest 3 specific tools or no-code platforms to lower this difficulty score in the MVP phase.
-      
-      Format as a structured Markdown report.`;
+      prompt = `Analyze "Execution Difficulty" for: "${idea.title}".
+      Task: Identify Technical Bottlenecks and Operational Challenges. Suggest tools to automate simpler tasks.`;
       break;
 
     case 'goToMarket':
-      prompt = `Create a "Go-To-Market (GTM) Strategy" for: "${idea.title}".
-      
-      GTM Score: ${idea.businessFit.goToMarket}/10
-      Community Signals: ${JSON.stringify(idea.communitySignals)}
-      
-      Task:
-      1. Identify the path of least resistance for acquiring the first 100 customers.
-      2. Suggest a "Trojan Horse" marketing strategy (offering value upfront).
-      3. List 3 specific content marketing angles/hooks based on the trend "${idea.trendKeyword}".
-      
-      Format as a structured Markdown report.`;
+      prompt = `Create a "Go-To-Market Strategy" for: "${idea.title}".
+      Task: Identify the path of least resistance. Suggest a "Trojan Horse" strategy. List 3 specific content hooks.`;
       break;
 
     case 'communitySignals':
       prompt = `Provide a detailed "Community Signals & Social Listening" breakdown for: "${idea.title}".
       
       Trend Keyword: ${idea.trendKeyword}
-      Current Signals: ${JSON.stringify(idea.communitySignals)}
+      Related Keywords: ${idea.relatedKeywords?.join(', ')}
       
       Task:
-      1. **Reddit Deep Dive**: Identify specific subreddits (e.g. r/SaaS, r/${idea.trendKeyword.replace(/\s/g, '')}) and summarize the sentiment around this problem.
-      2. **Facebook/Meta Groups**: Describe the type of groups where this target audience hangs out.
-      3. **Content Angles**: Suggest 3 discussion starters or viral posts to test demand in these communities.
-      4. **Influencer/Channel targets**: Identify types of influencers (Youtube/TikTok) discussing this.
+      1. **Reddit**: Search for subreddits like r/SaaS, r/Entrepreneur, or niche specific ones. Summarize ACTUAL sentiment. Are people complaining? Asking for help?
+      2. **Facebook/Meta**: Identify active groups where the target persona hangs out.
+      3. **YouTube**: Find channels covering this topic. What are the top comments saying?
+      4. **Validation Score**: Rate the "Desperation Level" of the market from 1-10 based on these signals.
       
       Format as a structured Markdown report.`;
       break;
@@ -573,25 +522,16 @@ export const generateFullAnalysis = async (idea: BusinessIdea): Promise<string> 
   const modelId = 'gemini-3-pro-preview';
   const prompt = `
     Act as a world-class Venture Capital Analyst.
-    Create a comprehensive Investment Memo and Deep Dive Report for the startup idea: "${idea.title}".
+    Create a comprehensive Investment Memo and Deep Dive Report for: "${idea.title}".
 
     Context:
     ${idea.description}
-    
     Trend Data: ${idea.trendKeyword}
     KPIs: ${JSON.stringify(idea.kpi)}
     Value Ladder: ${JSON.stringify(idea.sections.offer)}
     
     Your report should be detailed, professional, and formatted in Markdown.
-    Include the following sections:
-    1. **Executive Summary**: High-level thesis.
-    2. **Market Analysis**: Trends, why now, market size estimation.
-    3. **Competitive Landscape**: Who are the incumbents and what is the gap?
-    4. **Product Strategy & Value Ladder**: detailed breakdown.
-    5. **Go-To-Market Strategy**: Detailed acquisition channels.
-    6. **Risk Factors & Mitigation**: Honest assessment.
-    7. **Financial Outlook**: Revenue models and projections.
-    8. **Conclusion**: Final verdict.
+    Include: Executive Summary, Market Analysis, Competitive Landscape, Product Strategy, GTM, Risk Factors, Financial Outlook, Conclusion.
   `;
 
   try {
@@ -609,21 +549,194 @@ export const generateFullAnalysis = async (idea: BusinessIdea): Promise<string> 
   }
 };
 
-/**
- * Creates a Chat session for the Whiteboard that is context-aware of all nodes.
- * Uses Gemini 2.5 Flash for reliable multimodal + tool use.
- */
+// Define tool for creating notes on the whiteboard
+const createNotesTool: FunctionDeclaration = {
+  name: 'create_notes',
+  description: 'Create sticky notes or text cards on the whiteboard to organize thoughts or break down tasks.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      notes: {
+        type: Type.ARRAY,
+        description: 'List of notes to create',
+        items: {
+          type: Type.OBJECT,
+          properties: {
+             title: { type: Type.STRING, description: 'Title of the note (optional)' },
+             content: { type: Type.STRING, description: 'The body text of the note' },
+             color: { type: Type.STRING, description: 'Color hex code (e.g. #fef3c7 for yellow, #dbeafe for blue)' }
+          },
+          required: ['content']
+        }
+      }
+    },
+    required: ['notes']
+  }
+};
+
+// Tool for moving/organizing existing nodes
+const organizeLayoutTool: FunctionDeclaration = {
+  name: 'organize_layout',
+  description: 'Move existing nodes on the whiteboard to new coordinates. Use this to cluster related items, stack cards, tidy up the board, or organize ideas spatially.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      moves: {
+        type: Type.ARRAY,
+        description: 'List of nodes to move',
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            id: { type: Type.STRING, description: 'The ID of the node to move' },
+            x: { type: Type.NUMBER, description: 'New X coordinate' },
+            y: { type: Type.NUMBER, description: 'New Y coordinate' }
+          },
+          required: ['id', 'x', 'y']
+        }
+      }
+    },
+    required: ['moves']
+  }
+};
+
+// Tool for connecting nodes
+const connectNodesTool: FunctionDeclaration = {
+  name: 'connect_nodes',
+  description: 'Create connection lines between existing nodes to show relationships, workflows, flow, or hierarchy.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      connections: {
+        type: Type.ARRAY,
+        description: 'List of connections to create',
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            fromId: { type: Type.STRING, description: 'ID of the source node' },
+            toId: { type: Type.STRING, description: 'ID of the target node' }
+          },
+          required: ['fromId', 'toId']
+        }
+      }
+    },
+    required: ['connections']
+  }
+};
+
+// Tool for deleting nodes
+const deleteNodesTool: FunctionDeclaration = {
+  name: 'delete_nodes',
+  description: 'Remove nodes from the whiteboard. Use this to delete duplicate information, irrelevant notes, or clean up the board.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      nodeIds: {
+        type: Type.ARRAY,
+        description: 'List of node IDs to delete',
+        items: { type: Type.STRING }
+      }
+    },
+    required: ['nodeIds']
+  }
+};
+
+// Tool for grouping nodes
+const groupNodesTool: FunctionDeclaration = {
+  name: 'group_nodes',
+  description: 'Group multiple nodes together so they move and behave as a single unit. Use this to combine a video with its notes, or bundle related ideas.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      nodeIds: {
+        type: Type.ARRAY,
+        description: 'List of node IDs to group together',
+        items: { type: Type.STRING }
+      }
+    },
+    required: ['nodeIds']
+  }
+};
+
+// Tool for ungrouping nodes
+const ungroupNodesTool: FunctionDeclaration = {
+  name: 'ungroup_nodes',
+  description: 'Ungroup nodes that were previously grouped together.',
+  parameters: {
+    type: Type.OBJECT,
+    properties: {
+      nodeIds: {
+        type: Type.ARRAY,
+        description: 'List of node IDs to ungroup',
+        items: { type: Type.STRING }
+      }
+    },
+    required: ['nodeIds']
+  }
+};
+
 export const createWhiteboardChatSession = (nodes: WhiteboardNode[]): Chat => {
-  const modelId = 'gemini-2.5-flash';
+  // Upgraded to gemini-3-pro-preview to resolve "Tool use with function calling is unsupported" error
+  const modelId = 'gemini-3-pro-preview';
 
   const systemInstruction = `
     You are an advanced AI Creative Assistant integrated into a Whiteboard environment.
-    The user has placed several items (Context Nodes) on the board.
     
     **Your Capabilities:**
-    1. **Multimodal Vision**: You can "see" images and "watch" videos uploaded to the board.
-       - For videos, analyze motion, emotion, transitions, and visual details frame-by-frame.
-       - If the user asks about a video, describe what is happening visually in detail.
-    2. **YouTube Analysis**: For YouTube links, you cannot "see" the video pixels directly due to browser security. 
-       - Instead, use your Google Search tools to find transcripts, summaries, or metadata about the video ID.
-       -
+    1. **Multimodal Vision**: You can "see" images and "watch" videos uploaded to the board. 
+       - **YouTube**: If a YouTube URL is present, you can use Google Search to find its transcript, summary, or context to analyze it.
+    2. **Spatial Awareness**: You know the exact (x, y) coordinates and dimensions (w, h) of every node. 
+       - If items are far apart, they might be unrelated. 
+       - If items are overlapping, they are messy.
+    3. **Actionable Tools**: 
+       - **CREATE**: Use 'create_notes' to add new ideas.
+       - **MOVE**: Use 'organize_layout' to cluster related ideas or stack cards.
+       - **CONNECT**: Use 'connect_nodes' to draw lines for workflows.
+       - **GROUP**: Use 'group_nodes' to bundle items together (e.g. a Video + a Summary Note) so they stay together.
+       - **DELETE**: Use 'delete_nodes' to remove duplicates.
+    
+    **Context - Current Board State:**
+    ${nodes.map(n => `- ID: ${n.id} | Group: ${n.groupId || 'None'} | Type: ${n.type} | Pos: (${Math.round(n.position.x)}, ${Math.round(n.position.y)}) | Content: "${n.title || n.content.substring(0, 50)}..."`).join('\n')}
+    
+    **Your Goal:**
+    Help the user brainstorm, organize, and structure their thoughts. 
+    If the user says "Analyze this video", find the YouTube node, search for its content, and create a summary note next to it, then GROUP them.
+  `;
+
+  return ai.chats.create({
+    model: modelId,
+    config: {
+      systemInstruction: systemInstruction,
+      temperature: 0.7,
+      tools: [
+        { googleSearch: {} },
+        { functionDeclarations: [createNotesTool, organizeLayoutTool, connectNodesTool, deleteNodesTool, groupNodesTool, ungroupNodesTool] }
+      ]
+    }
+  });
+};
+
+export const convertNodesToParts = (nodes: WhiteboardNode[]): Part[] => {
+  const parts: Part[] = [];
+  
+  nodes.forEach(node => {
+    // Include Position, Dimensions, and GroupID in the context text
+    parts.push({ text: `\n[Node ID: ${node.id} | Type: ${node.type} | Group: ${node.groupId || 'None'} | Bounds: x=${Math.round(node.position.x)}, y=${Math.round(node.position.y)}, w=${node.width || 280}, h=${node.height || 200} | Title: ${node.title}]\n` });
+
+    if (node.type === 'text' || node.type === 'link' || node.type === 'youtube') {
+      parts.push({ text: node.content });
+    } else if (['image', 'video', 'audio', 'pdf'].includes(node.type) && node.content && node.mimeType) {
+        if (SUPPORTED_MIME_TYPES.has(node.mimeType)) {
+            parts.push({ 
+                inlineData: {
+                    data: node.content,
+                    mimeType: node.mimeType
+                }
+            });
+        } else {
+             parts.push({ text: `[Attached file: ${node.fileName || 'Unknown'}. Type ${node.mimeType} is not supported for visual analysis, but exists in context.]` });
+        }
+    }
+  });
+
+  return parts;
+};
