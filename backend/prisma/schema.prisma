@@ -1,0 +1,248 @@
+// This is your Prisma schema file for BizWiz NeuroBoard Backend
+// Learn more: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ================================
+// USER MANAGEMENT
+// ================================
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  name         String
+  authProvider String?  // e.g., "google", "email", "clerk"
+  authId       String?  // External auth provider ID
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  boards Board[]
+  nodes  Node[]
+
+  @@index([email])
+}
+
+// ================================
+// BOARDS & WHITEBOARD
+// ================================
+
+model Board {
+  id          String   @id @default(uuid())
+  ownerId     String
+  title       String
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  owner     User            @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  nodes     Node[]
+  groups    NodeGroup[]
+  edges     Edge[]
+  snapshots BoardSnapshot[]
+
+  @@index([ownerId])
+  @@index([createdAt])
+}
+
+// ================================
+// NODES (Content on the Whiteboard)
+// ================================
+
+model Node {
+  id              String   @id @default(uuid())
+  boardId         String
+  ownerId         String
+  type            NodeType
+  title           String
+  rawText         String?  @db.Text // Extracted text content for RAG
+  metadata        Json?    // Flexible storage: { url, filename, duration, status, summary, chapters, etc. }
+  fileStorageKey  String?  // S3 object key for raw files
+  previewImageKey String?  // S3 object key for thumbnails/screenshots
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  board            Board           @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  owner            User            @relation(fields: [ownerId], references: [id])
+  position         NodePosition?
+  embeddings       NodeEmbedding[]
+  groupMemberships GroupMember[]
+  edgesFrom        Edge[]          @relation("EdgeFrom")
+  edgesTo          Edge[]          @relation("EdgeTo")
+
+  @@index([boardId])
+  @@index([ownerId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum NodeType {
+  NOTE
+  DOCUMENT
+  YOUTUBE_VIDEO
+  WEB_URL
+  IMAGE
+  AUDIO
+  VIDEO
+  PDF
+  OTHER
+}
+
+// ================================
+// SPATIAL LAYOUT (Node Positions)
+// ================================
+
+model NodePosition {
+  id        String   @id @default(uuid())
+  nodeId    String   @unique
+  boardId   String
+  x         Float
+  y         Float
+  width     Float    @default(300)
+  height    Float    @default(200)
+  zIndex    Int      @default(0)
+  color     String?  // Optional color for styling (hex code)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([nodeId])
+}
+
+// ================================
+// GROUPING (Cluster related nodes)
+// ================================
+
+model NodeGroup {
+  id          String   @id @default(uuid())
+  boardId     String
+  name        String
+  description String?  @db.Text
+  color       String?  // Optional color for group visualization
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  board   Board         @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  members GroupMember[]
+
+  @@index([boardId])
+}
+
+model GroupMember {
+  id        String   @id @default(uuid())
+  groupId   String
+  nodeId    String
+  createdAt DateTime @default(now())
+
+  // Relations
+  group NodeGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  node  Node      @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, nodeId])
+  @@index([groupId])
+  @@index([nodeId])
+}
+
+// ================================
+// EDGES (Connections between nodes)
+// ================================
+
+model Edge {
+  id           String   @id @default(uuid())
+  boardId      String
+  sourceNodeId String
+  targetNodeId String
+  label        String?  // Optional label for the connection
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relations
+  board      Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  sourceNode Node  @relation("EdgeFrom", fields: [sourceNodeId], references: [id], onDelete: Cascade)
+  targetNode Node  @relation("EdgeTo", fields: [targetNodeId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([sourceNodeId])
+  @@index([targetNodeId])
+}
+
+// ================================
+// RAG: EMBEDDINGS (Vector Storage)
+// ================================
+
+model NodeEmbedding {
+  id         String                         @id @default(uuid())
+  nodeId     String
+  chunkIndex Int // Order of chunks in the document
+  chunkText  String                         @db.Text
+  embedding  Unsupported("vector(768)")?    // pgvector extension - 768 dimensions for Gemini text-embedding-004
+  createdAt  DateTime                       @default(now())
+
+  // Relations
+  node Node @relation(fields: [nodeId], references: [id], onDelete: Cascade)
+
+  @@index([nodeId, chunkIndex])
+  @@index([nodeId])
+}
+
+// ================================
+// VERSIONING (Board Snapshots)
+// ================================
+
+model BoardSnapshot {
+  id              String   @id @default(uuid())
+  boardId         String
+  snapshotJson    Json // Full board state: nodes, positions, groups, edges
+  createdAt       DateTime @default(now())
+  createdByUserId String?
+
+  // Relations
+  board Board @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+  @@index([createdAt])
+}
+
+// ================================
+// JOB TRACKING (Optional - for UI feedback)
+// ================================
+
+model Job {
+  id        String    @id @default(uuid())
+  type      String    // e.g., "youtube_ingestion", "web_scraping", "document_processing"
+  nodeId    String?   // Associated node if applicable
+  boardId   String?
+  status    JobStatus @default(PENDING)
+  progress  Int       @default(0) // 0-100
+  error     String?   @db.Text
+  result    Json?     // Result data
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([nodeId])
+  @@index([boardId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+enum JobStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
