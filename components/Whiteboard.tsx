@@ -603,20 +603,32 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ boardId, onBoardChange }
         const nodeId = activeAiNodeId;
         const userText = inputMsg;
         setInputMsg('');
-        
+
         setChats(prev => ({ ...prev, [nodeId]: [...(prev[nodeId] || []), { role: 'user', text: userText }] }));
         setIsChatLoading(true);
 
         try {
             let chat = chatSessionsRef.current[nodeId];
             if (!chat) {
-                chat = createWhiteboardChatSession(nodes);
+                // Only include nodes that are connected TO the AI agent
+                const connectedNodeIds = new Set(
+                    connections
+                        .filter(conn => conn.to === nodeId)
+                        .map(conn => conn.from)
+                );
+
+                // Include the AI agent itself and all connected nodes
+                const relevantNodes = nodes.filter(n =>
+                    n.id === nodeId || connectedNodeIds.has(n.id)
+                );
+
+                chat = createWhiteboardChatSession(relevantNodes);
                 chatSessionsRef.current[nodeId] = chat;
             }
 
             const response = await chat.sendMessage({ message: userText });
             const aiText = response.text;
-            
+
             // Handle Tool Calls
             if (response.functionCalls && response.functionCalls.length > 0) {
                  executeToolCalls(response.functionCalls);
