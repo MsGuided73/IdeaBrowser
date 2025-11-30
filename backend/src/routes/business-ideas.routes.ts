@@ -6,12 +6,12 @@
 import { Router } from 'express';
 import { businessIdeasController } from '../controllers/business-ideas.controller';
 import { asyncHandler } from '../middleware/error.middleware';
-import { stubAuth } from '../middleware/auth.middleware';
+import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
 // Apply authentication to all routes
-router.use(stubAuth);
+router.use(authenticateToken);
 
 /**
  * GET /api/business-ideas

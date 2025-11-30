@@ -339,6 +339,171 @@ Please provide a comprehensive analysis.`;
 };
 
 // ================================
+// AUTHENTICATION API FUNCTIONS
+// ================================
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface RegisterRequest {
+  email: string;
+  password: string;
+  name: string;
+}
+
+export interface AuthResponse {
+  user: {
+    id: string;
+    email: string;
+    name: string;
+    emailVerified: boolean;
+    lastLoginAt?: string;
+  };
+  token: string;
+}
+
+export interface UserProfile {
+  id: string;
+  email: string;
+  name: string;
+  emailVerified: boolean;
+  lastLoginAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    boards: number;
+    businessIdeas: number;
+  };
+}
+
+export const authApi = {
+  // Register a new user
+  async register(data: RegisterRequest): Promise<AuthResponse> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+      data: AuthResponse;
+    }>('/auth/register', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // Login user
+  async login(data: LoginRequest): Promise<AuthResponse> {
+    const response = await apiRequest<{
+      status: string;
+      data: AuthResponse;
+    }>('/auth/login', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // Logout user
+  async logout(): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/logout', {
+      method: 'POST',
+    });
+    return response;
+  },
+
+  // Verify email
+  async verifyEmail(token: string): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/verify-email', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+    return response;
+  },
+
+  // Resend verification email
+  async resendVerification(email: string): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/resend-verification', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
+
+  // Forgot password
+  async forgotPassword(email: string): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    });
+    return response;
+  },
+
+  // Reset password
+  async resetPassword(token: string, newPassword: string): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    });
+    return response;
+  },
+
+  // Get user profile
+  async getProfile(): Promise<{ user: UserProfile }> {
+    const response = await apiRequest<{
+      status: string;
+      data: { user: UserProfile };
+    }>('/auth/profile');
+    return response.data;
+  },
+
+  // Update user profile
+  async updateProfile(data: { name?: string; email?: string }): Promise<{
+    user: UserProfile;
+    token?: string;
+  }> {
+    const response = await apiRequest<{
+      status: string;
+      data: { user: UserProfile; token?: string };
+    }>('/auth/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.data;
+  },
+
+  // Change password
+  async changePassword(data: {
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<{ status: string; message: string }> {
+    const response = await apiRequest<{
+      status: string;
+      message: string;
+    }>('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response;
+  },
+};
+
+// ================================
 // BUSINESS IDEAS API FUNCTIONS
 // ================================
 

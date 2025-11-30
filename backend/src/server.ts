@@ -22,6 +22,7 @@ import nodesRoutes from './routes/nodes.routes';
 import chatRoutes from './routes/chat.routes';
 import youtubeRoutes from './routes/youtube.routes';
 import businessIdeasRoutes from './routes/business-ideas.routes';
+import authRoutes from './routes/auth.routes';
 
 // Create Express app
 const app = express();
@@ -77,6 +78,7 @@ app.get('/health', (req, res) => {
 });
 
 // API routes
+app.use('/api/auth', authRoutes);
 app.use('/api/boards/:boardId/nodes', nodesRoutes);
 app.use('/api/boards/:boardId/chat', chatRoutes);
 app.use('/api/boards', boardsRoutes);

@@ -17,13 +17,20 @@ datasource db {
 // ================================
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  name         String
-  authProvider String?  // e.g., "google", "email", "clerk"
-  authId       String?  // External auth provider ID
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                String    @id @default(uuid())
+  email             String    @unique
+  name              String
+  password          String?   // Hashed password for email auth
+  emailVerified     Boolean   @default(false)
+  emailVerificationToken String?
+  emailVerificationExpires DateTime?
+  passwordResetToken String?
+  passwordResetExpires DateTime?
+  authProvider      String?   // e.g., "google", "email", "clerk"
+  authId            String?   // External auth provider ID
+  lastLoginAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Relations
   boards         Board[]
@@ -37,6 +44,8 @@ model User {
   generationLogs IdeaGenerationLog[]
 
   @@index([email])
+  @@index([emailVerificationToken])
+  @@index([passwordResetToken])
 }
 
 // ================================

@@ -40,6 +40,15 @@ interface EnvConfig {
   // Auth
   JWT_SECRET: string;
 
+  // Email
+  EMAIL_HOST: string;
+  EMAIL_PORT: number;
+  EMAIL_SECURE: boolean;
+  EMAIL_USER: string;
+  EMAIL_PASS: string;
+  EMAIL_FROM: string;
+  FRONTEND_URL: string;
+
   // YouTube
   YT_DLP_PATH: string;
 
@@ -102,6 +111,15 @@ export const env: EnvConfig = {
 
   // Auth
   JWT_SECRET: getEnv('JWT_SECRET', 'your_jwt_secret_change_in_production'),
+
+  // Email
+  EMAIL_HOST: getEnv('EMAIL_HOST', 'smtp.ethereal.email'),
+  EMAIL_PORT: getEnvNumber('EMAIL_PORT', 587),
+  EMAIL_SECURE: getEnvBoolean('EMAIL_SECURE', false),
+  EMAIL_USER: getEnv('EMAIL_USER', 'test@example.com'),
+  EMAIL_PASS: getEnv('EMAIL_PASS', 'testpass'),
+  EMAIL_FROM: getEnv('EMAIL_FROM', 'noreply@bizwiz.com'),
+  FRONTEND_URL: getEnv('FRONTEND_URL', 'http://localhost:5173'),
 
   // YouTube
   YT_DLP_PATH: getEnv('YT_DLP_PATH', 'yt-dlp'),
