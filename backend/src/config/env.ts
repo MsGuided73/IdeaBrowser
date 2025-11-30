@@ -13,6 +13,12 @@ interface EnvConfig {
   // Database
   DATABASE_URL: string;
 
+  // Supabase
+  SUPABASE_URL: string;
+  SUPABASE_ANON_KEY: string;
+  SUPABASE_SERVICE_ROLE_KEY: string;
+  SUPABASE_JWT_SECRET?: string;
+
   // S3 Storage
   S3_ENDPOINT: string;
   S3_REGION: string;
@@ -69,6 +75,12 @@ function getEnvBoolean(key: string, defaultValue: boolean): boolean {
 export const env: EnvConfig = {
   // Database
   DATABASE_URL: getEnv('DATABASE_URL'),
+
+  // Supabase
+  SUPABASE_URL: getEnv('SUPABASE_URL'),
+  SUPABASE_ANON_KEY: getEnv('SUPABASE_ANON_KEY'),
+  SUPABASE_SERVICE_ROLE_KEY: getEnv('SUPABASE_SERVICE_ROLE_KEY'),
+  SUPABASE_JWT_SECRET: process.env.SUPABASE_JWT_SECRET,
 
   // S3 Storage
   S3_ENDPOINT: getEnv('S3_ENDPOINT', 'http://localhost:9000'),

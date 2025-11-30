@@ -774,8 +774,8 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
                       <button 
                           onClick={() => handleDeepDive('communitySignals')}
                           className="w-full py-3 text-center text-sm font-bold text-blue-600 hover:bg-blue-50 rounded transition-colors border border-transparent hover:border-blue-100"
-                      >
-                          View detailed breakdown ->
+                        >
+                          View detailed breakdown {'->'} 
                       </button>
                   </div>
               </div>

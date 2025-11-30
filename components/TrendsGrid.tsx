@@ -49,7 +49,7 @@ export const TrendsGrid: React.FC = () => {
             
              <div className="text-center mt-12">
                 <button className="bg-blue-600 text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
-                    See all trends ->
+                    See all trends {'->'} 
                 </button>
             </div>
         </div>

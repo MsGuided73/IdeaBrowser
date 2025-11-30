@@ -1,11 +1,12 @@
 /**
- * S3 Storage Service
- * Handles file uploads, downloads, and management in S3-compatible storage
+ * Storage Service
+ * Handles file uploads, downloads, and management in S3-compatible storage and Supabase Storage
  */
 
 import { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { s3Client, S3_BUCKET, generateS3Key } from '../config/storage';
+import { supabaseAdmin, SUPABASE_BUCKET, getSupabaseStorageUrl } from '../config/supabase';
 import { StorageUploadResult } from '../types';
 import { logger } from '../config/logger';
 
@@ -135,6 +136,137 @@ export class StorageService {
   ): Promise<StorageUploadResult> {
     const buffer = Buffer.from(base64Data, 'base64');
     return this.uploadFile(buffer, filename, boardId, nodeId, prefix, contentType);
+  }
+
+  /**
+   * Upload a file to Supabase Storage
+   * @param buffer File buffer
+   * @param filename Original filename
+   * @param boardId Board ID
+   * @param nodeId Node ID
+   * @param prefix Storage prefix (raw, preview, audio, screenshot)
+   * @param contentType MIME type
+   */
+  async uploadFileToSupabase(
+    buffer: Buffer,
+    filename: string,
+    boardId: string,
+    nodeId: string,
+    prefix: 'raw' | 'preview' | 'audio' | 'screenshot' = 'raw',
+    contentType?: string
+  ): Promise<StorageUploadResult> {
+    try {
+      const key = generateS3Key(boardId, nodeId, filename, prefix);
+
+      const { error } = await supabaseAdmin.storage
+        .from(SUPABASE_BUCKET)
+        .upload(key, buffer, {
+          contentType,
+          upsert: true,
+        });
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`File uploaded to Supabase Storage`, { key, size: buffer.length });
+
+      return {
+        key,
+        url: getSupabaseStorageUrl(SUPABASE_BUCKET, key),
+        size: buffer.length,
+      };
+    } catch (error) {
+      logger.error('Failed to upload file to Supabase Storage', { error, filename });
+      throw new Error(`Failed to upload file to Supabase: ${error}`);
+    }
+  }
+
+  /**
+   * Download a file from Supabase Storage
+   * @param key Storage object key
+   */
+  async downloadFileFromSupabase(key: string): Promise<Buffer> {
+    try {
+      const { data, error } = await supabaseAdmin.storage
+        .from(SUPABASE_BUCKET)
+        .download(key);
+
+      if (error) {
+        throw error;
+      }
+
+      // Convert Blob to Buffer
+      const arrayBuffer = await data.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      logger.error('Failed to download file from Supabase Storage', { error, key });
+      throw new Error(`Failed to download file from Supabase: ${error}`);
+    }
+  }
+
+  /**
+   * Delete a file from Supabase Storage
+   * @param key Storage object key
+   */
+  async deleteFileFromSupabase(key: string): Promise<void> {
+    try {
+      const { error } = await supabaseAdmin.storage
+        .from(SUPABASE_BUCKET)
+        .remove([key]);
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info(`File deleted from Supabase Storage`, { key });
+    } catch (error) {
+      logger.error('Failed to delete file from Supabase Storage', { error, key });
+      throw new Error(`Failed to delete file from Supabase: ${error}`);
+    }
+  }
+
+  /**
+   * Get a signed URL for accessing a file in Supabase Storage (valid for 1 hour)
+   * @param key Storage object key
+   * @param expiresIn Expiration time in seconds
+   */
+  async getSupabaseSignedUrl(key: string, expiresIn: number = 3600): Promise<string> {
+    try {
+      const { data, error } = await supabaseAdmin.storage
+        .from(SUPABASE_BUCKET)
+        .createSignedUrl(key, expiresIn);
+
+      if (error) {
+        throw error;
+      }
+
+      return data.signedUrl;
+    } catch (error) {
+      logger.error('Failed to generate Supabase signed URL', { error, key });
+      throw new Error(`Failed to generate Supabase signed URL: ${error}`);
+    }
+  }
+
+  /**
+   * Upload base64 encoded data to Supabase Storage
+   * @param base64Data Base64 string
+   * @param filename Filename
+   * @param boardId Board ID
+   * @param nodeId Node ID
+   * @param prefix Storage prefix
+   * @param contentType MIME type
+   */
+  async uploadBase64ToSupabase(
+    base64Data: string,
+    filename: string,
+    boardId: string,
+    nodeId: string,
+    prefix: 'raw' | 'preview' | 'audio' | 'screenshot' = 'raw',
+    contentType?: string
+  ): Promise<StorageUploadResult> {
+    const buffer = Buffer.from(base64Data, 'base64');
+    return this.uploadFileToSupabase(buffer, filename, boardId, nodeId, prefix, contentType);
   }
 }
 
