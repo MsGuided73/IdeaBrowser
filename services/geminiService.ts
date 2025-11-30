@@ -88,8 +88,8 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
 }
 
 export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
-  // Using gemini-3.0-pro for deeper, world-class analysis
-  const modelId = 'gemini-3.0-pro';
+  // Using gemini-3-pro-preview for deeper, world-class analysis
+  const modelId = 'gemini-3-pro-preview';
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -187,7 +187,7 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
 };
 
 export const analyzeUserIdea = async (userDescription: string, media?: { data: string, mimeType: string }): Promise<BusinessIdea> => {
-  const modelId = 'gemini-3.0-pro';
+  const modelId = 'gemini-3-pro-preview';
 
   const prompt = `
     Act as a world-class venture capitalist and Product UX Expert.
@@ -283,7 +283,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
 };
 
 export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
-  const modelId = 'gemini-3.0-pro';
+  const modelId = 'gemini-3-pro-preview';
   
   const systemInstruction = `
     You are an expert Business Consultant and Market Analyst.
@@ -312,7 +312,7 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
 };
 
 export const generateArtifact = async (idea: BusinessIdea, type: string): Promise<string> => {
-  const modelId = 'gemini-3.0-pro';
+  const modelId = 'gemini-3-pro-preview';
   let prompt = '';
 
   // Human-Centric Prompt Engineering
@@ -437,10 +437,10 @@ export const generateArtifact = async (idea: BusinessIdea, type: string): Promis
 };
 
 export const generateSectionDeepDive = async (
-  idea: BusinessIdea, 
+  idea: BusinessIdea,
   section: 'whyNow' | 'proofAndSignals' | 'marketGap' | 'executionPlan' | 'revenuePotential' | 'executionDifficulty' | 'goToMarket' | 'communitySignals'
 ): Promise<string> => {
-  const modelId = 'gemini-3.0-pro';
+  const modelId = 'gemini-3-pro-preview';
   let prompt = '';
 
   switch(section) {
@@ -519,7 +519,7 @@ export const generateSectionDeepDive = async (
 };
 
 export const generateFullAnalysis = async (idea: BusinessIdea): Promise<string> => {
-  const modelId = 'gemini-3.0-pro';
+  const modelId = 'gemini-3-pro-preview';
   const prompt = `
     Act as a world-class Venture Capital Analyst.
     Create a comprehensive Investment Memo and Deep Dive Report for: "${idea.title}".
@@ -675,8 +675,8 @@ const ungroupNodesTool: FunctionDeclaration = {
 };
 
 export const createWhiteboardChatSession = (nodes: WhiteboardNode[]): Chat => {
-  // Upgraded to gemini-3.0-pro to resolve "Tool use with function calling is unsupported" error
-  const modelId = 'gemini-3.0-pro';
+  // Upgraded to gemini-3-pro-preview to resolve "Tool use with function calling is unsupported" error
+  const modelId = 'gemini-3-pro-preview';
 
   const systemInstruction = `
     You are an advanced AI Creative Assistant integrated into a Whiteboard environment.
