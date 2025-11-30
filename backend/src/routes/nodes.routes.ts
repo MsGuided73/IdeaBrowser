@@ -25,6 +25,7 @@ router.post(
 );
 
 router.post('/youtube', asyncHandler(nodesController.addYouTubeVideo.bind(nodesController)));
+router.post('/youtube/process', asyncHandler(nodesController.processYouTubeVideo.bind(nodesController)));
 
 router.post('/url', asyncHandler(nodesController.addWebUrl.bind(nodesController)));
 

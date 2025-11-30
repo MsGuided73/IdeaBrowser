@@ -265,6 +265,80 @@ export const chatApi = {
 };
 
 // ================================
+// YOUTUBE API FUNCTIONS
+// ================================
+
+export interface YouTubeMetadata {
+  url: string;
+  title: string;
+  duration?: number;
+  channel?: string;
+  thumbnail?: string;
+}
+
+export interface YouTubeProcessingResult {
+  metadata: YouTubeMetadata;
+  transcript: string;
+  summary: string;
+  transcriptMetadata: any;
+  audioStorageKey: string;
+}
+
+export const youtubeApi = {
+  // Process a YouTube video for transcription and analysis
+  async processVideo(boardId: string, nodeId: string, url: string): Promise<YouTubeProcessingResult> {
+    const response = await apiRequest<{ status: string; data: YouTubeProcessingResult }>(`/boards/${boardId}/nodes/youtube/process`, {
+      method: 'POST',
+      body: JSON.stringify({ url, nodeId }),
+    });
+    return response.data;
+  },
+
+  // Get YouTube video metadata without processing
+  async getMetadata(url: string): Promise<YouTubeMetadata> {
+    const response = await apiRequest<{ status: string; data: YouTubeMetadata }>('/youtube/metadata', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    });
+    return response.data;
+  },
+
+  // Analyze transcript content
+  async analyzeTranscript(transcript: string, prompt?: string): Promise<string> {
+    const defaultPrompt = `Analyze this YouTube video transcript and provide:
+1. Main topics and themes
+2. Key insights or important points
+3. Any actionable takeaways
+4. Overall assessment of the content quality and value
+
+Please provide a comprehensive analysis.`;
+
+    const analysisPrompt = prompt || defaultPrompt;
+
+    const response = await apiRequest<{ status: string; data: { analysis: string } }>('/youtube/analyze-transcript', {
+      method: 'POST',
+      body: JSON.stringify({ transcript, prompt: analysisPrompt }),
+    });
+    return response.data.analysis;
+  },
+
+  // Extract YouTube video ID from URL
+  extractVideoId(url: string): string | null {
+    const patterns = [
+      /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([^&\n?#]+)/,
+      /youtube\.com\/shorts\/([^&\n?#]+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = url.match(pattern);
+      if (match) return match[1];
+    }
+
+    return null;
+  },
+};
+
+// ================================
 // WEBSOCKET CLIENT
 // ================================
 

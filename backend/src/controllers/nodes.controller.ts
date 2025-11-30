@@ -9,6 +9,7 @@ import { prisma } from '../config/database';
 import { AuthenticatedRequest, NotFoundError, ForbiddenError, ValidationError } from '../types';
 import { embeddingsService } from '../services/embeddings.service';
 import { documentService } from '../services/document.service';
+import { youtubeService } from '../services/youtube.service';
 import { logger } from '../config/logger';
 import { NodeType } from '@prisma/client';
 
@@ -232,6 +233,79 @@ export class NodesController {
       data: { node },
       message: 'YouTube video is being processed (job queue not yet implemented)',
     });
+  }
+
+  /**
+   * Process YouTube video for transcription and analysis
+   * POST /api/boards/:boardId/nodes/youtube/process
+   */
+  async processYouTubeVideo(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const { boardId } = req.params;
+    const { url, nodeId } = req.body;
+    const userId = req.user!.id;
+
+    await this.verifyBoardAccess(boardId, userId);
+
+    if (!url) {
+      throw new ValidationError('URL is required');
+    }
+
+    if (!nodeId) {
+      throw new ValidationError('Node ID is required');
+    }
+
+    try {
+      // Process the YouTube video
+      logger.info('Processing YouTube video', { nodeId, url });
+      const result = await youtubeService.processVideo(url, boardId, nodeId);
+
+      // Update node with processed data
+      await prisma.node.update({
+        where: { id: nodeId },
+        data: {
+          rawText: result.transcript,
+          fileStorageKey: result.audioStorageKey,
+          metadata: {
+            url: result.metadata.url,
+            title: result.metadata.title,
+            duration: result.metadata.duration,
+            channel: result.metadata.channel,
+            thumbnail: result.metadata.thumbnail,
+            transcript: result.transcript,
+            summary: result.summary,
+            transcriptMetadata: result.transcriptMetadata,
+            status: 'completed',
+            processedAt: new Date().toISOString(),
+          },
+        },
+      });
+
+      // Generate embeddings for the transcript
+      await embeddingsService.generateAndStoreEmbeddings(nodeId, result.transcript);
+
+      logger.info('YouTube video processed successfully', { nodeId });
+
+      res.json({
+        status: 'success',
+        data: result,
+      });
+    } catch (error) {
+      logger.error('Failed to process YouTube video', { error, nodeId, url });
+
+      // Update node status to failed
+      await prisma.node.update({
+        where: { id: nodeId },
+        data: {
+          metadata: {
+            url,
+            status: 'failed',
+            error: error instanceof Error ? error.message : 'Unknown error',
+          },
+        },
+      }).catch(() => {}); // Ignore errors in error handling
+
+      throw error;
+    }
   }
 
   /**

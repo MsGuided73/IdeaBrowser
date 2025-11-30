@@ -12,6 +12,7 @@ import { Chat } from '@google/genai';
 import { createWhiteboardChatSession } from '../services/geminiService';
 import { boardApi, nodeApi, chatApi, WebSocketClient, BoardState, ApiNode, ApiNodePosition, ApiEdge, ApiGroup } from '../services/apiService';
 import { BoardManager } from './BoardManager';
+import { YouTubeProcessor } from './YouTubeProcessor';
 
 const PREVIEW_LIMIT_CHARS = 150;
 
@@ -52,6 +53,7 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ boardId, onBoardChange }
     const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
     const [boardTitle, setBoardTitle] = useState<string>('Untitled Board');
     const [isBoardManagerOpen, setIsBoardManagerOpen] = useState(false);
+    const [isYouTubeProcessorOpen, setIsYouTubeProcessorOpen] = useState(false);
     const [isLoadingBoard, setIsLoadingBoard] = useState(false);
     const [isSavingBoard, setIsSavingBoard] = useState(false);
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -848,6 +850,9 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ boardId, onBoardChange }
                  <button onClick={() => addNode({ id: Date.now().toString(), type: 'ai-partner', content: '', position: { x: -transform.x/transform.scale + 150, y: -transform.y/transform.scale + 150 }, title: 'AI Partner' })} className="p-2 hover:bg-slate-100 rounded-full text-purple-600" title="AI Partner">
                      <Sparkles size={20} />
                  </button>
+                 <button onClick={() => setIsYouTubeProcessorOpen(true)} className="p-2 hover:bg-slate-100 rounded-full text-red-600" title="YouTube Video Processor">
+                     <Youtube size={20} />
+                 </button>
                  <div className="w-px bg-slate-200 mx-1" />
                  <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-slate-100 rounded-full text-slate-600" title="Upload Media">
                      <ImageIcon size={20} />
@@ -863,6 +868,19 @@ export const Whiteboard: React.FC<WhiteboardProps> = ({ boardId, onBoardChange }
                      onBoardCreate={handleBoardCreate}
                      onClose={() => setIsBoardManagerOpen(false)}
                  />
+             )}
+
+             {/* YouTube Processor Modal */}
+             {isYouTubeProcessorOpen && (
+                 <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+                     <YouTubeProcessor
+                         onNodeCreate={(nodeData) => {
+                             addNode(nodeData);
+                             setIsYouTubeProcessorOpen(false);
+                         }}
+                         onClose={() => setIsYouTubeProcessorOpen(false)}
+                     />
+                 </div>
              )}
 
              {/* Loading Overlay */}
