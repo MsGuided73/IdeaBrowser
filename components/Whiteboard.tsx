@@ -1,15 +1,17 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-    Image as ImageIcon, Video, FileText, Mic, Link as LinkIcon, 
-    Youtube, Move, X, Plus, MessageSquare, Sparkles, Send, 
+import {
+    Image as ImageIcon, Video, FileText, Mic, Link as LinkIcon,
+    Youtube, Move, X, Plus, MessageSquare, Sparkles, Send,
     Maximize2, Trash2, Play, FileType, Loader2, Instagram, Square, Smartphone,
     GripHorizontal, ChevronRight, Bot, Cable, Copy, Download, Check, Subtitles,
     Eye, ZoomIn, ZoomOut, MousePointer2, Palette, MoreHorizontal, Group, Ungroup, BoxSelect,
-    StickyNote
+    StickyNote, Save, FolderOpen
 } from 'lucide-react';
 import { WhiteboardNode, Connection } from '../types';
 import { Chat } from '@google/genai';
 import { createWhiteboardChatSession } from '../services/geminiService';
+import { boardApi, nodeApi, chatApi, WebSocketClient, BoardState, ApiNode, ApiNodePosition, ApiEdge, ApiGroup } from '../services/apiService';
+import { BoardManager } from './BoardManager';
 
 const PREVIEW_LIMIT_CHARS = 150;
 
@@ -40,7 +42,23 @@ interface SelectionBox {
     currentY: number;
 }
 
-export const Whiteboard: React.FC = () => {
+interface WhiteboardProps {
+    boardId?: string;
+    onBoardChange?: (boardId: string) => void;
+}
+
+export const Whiteboard: React.FC<WhiteboardProps> = ({ boardId, onBoardChange }) => {
+    // Board State
+    const [currentBoardId, setCurrentBoardId] = useState<string | null>(boardId || null);
+    const [boardTitle, setBoardTitle] = useState<string>('Untitled Board');
+    const [isBoardManagerOpen, setIsBoardManagerOpen] = useState(false);
+    const [isLoadingBoard, setIsLoadingBoard] = useState(false);
+    const [isSavingBoard, setIsSavingBoard] = useState(false);
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
+    // WebSocket for real-time sync
+    const wsClientRef = useRef<WebSocketClient | null>(null);
+
     // Canvas State
     const [nodes, setNodes] = useState<WhiteboardNode[]>([]);
     const [connections, setConnections] = useState<Connection[]>([]);
@@ -84,6 +102,130 @@ export const Whiteboard: React.FC = () => {
             chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
         }
     }, [chats, activeAiNodeId]);
+
+    // --- Board Management Functions ---
+    const loadBoard = async (boardId: string) => {
+        try {
+            setIsLoadingBoard(true);
+            const boardState = await boardApi.getBoardState(boardId);
+
+            // Convert API data to whiteboard format
+            const whiteboardNodes: WhiteboardNode[] = boardState.nodes.map(apiNode => ({
+                id: apiNode.id,
+                type: apiNode.type === 'NOTE' ? 'text' : apiNode.type === 'YOUTUBE_VIDEO' ? 'youtube' : 'text',
+                title: apiNode.title,
+                content: apiNode.rawText || '',
+                position: { x: 100, y: 100 }, // Will be updated from positions
+                width: 300,
+                height: 200,
+            }));
+
+            // Apply positions
+            boardState.positions.forEach(pos => {
+                const node = whiteboardNodes.find(n => n.id === pos.nodeId);
+                if (node) {
+                    node.position = { x: pos.x, y: pos.y };
+                    node.width = pos.width;
+                    node.height = pos.height;
+                    node.color = pos.color || undefined;
+                }
+            });
+
+            // Convert edges to connections
+            const connectionsData: Connection[] = boardState.edges.map(edge => ({
+                id: edge.id,
+                from: edge.sourceNodeId,
+                to: edge.targetNodeId,
+                label: edge.label || undefined,
+            }));
+
+            setNodes(whiteboardNodes);
+            setConnections(connectionsData);
+            setCurrentBoardId(boardId);
+            setBoardTitle(boardState.board.title);
+            setHasUnsavedChanges(false);
+
+            // Initialize WebSocket for real-time sync
+            if (wsClientRef.current) {
+                wsClientRef.current.disconnect();
+            }
+            wsClientRef.current = new WebSocketClient();
+            await wsClientRef.current.connect(boardId);
+
+        } catch (error) {
+            console.error('Failed to load board:', error);
+            alert('Failed to load board. Please check your backend server.');
+        } finally {
+            setIsLoadingBoard(false);
+        }
+    };
+
+    const saveBoard = async () => {
+        if (!currentBoardId) {
+            alert('No board loaded to save');
+            return;
+        }
+
+        try {
+            setIsSavingBoard(true);
+
+            // Save nodes and positions
+            for (const node of nodes) {
+                try {
+                    // Create or update node
+                    await nodeApi.updateNode(currentBoardId, node.id, {
+                        title: node.title,
+                        content: node.content,
+                        position: node.position,
+                        width: node.width,
+                        height: node.height,
+                        color: node.color,
+                    });
+                } catch (error) {
+                    // If node doesn't exist, create it
+                    if (node.type === 'text') {
+                        await nodeApi.createNote(currentBoardId, {
+                            title: node.title,
+                            content: node.content || '',
+                        });
+                    } else if (node.type === 'youtube') {
+                        await nodeApi.createYouTubeNode(currentBoardId, {
+                            url: node.content,
+                            title: node.title,
+                        });
+                    }
+                }
+            }
+
+            setHasUnsavedChanges(false);
+            alert('Board saved successfully!');
+
+        } catch (error) {
+            console.error('Failed to save board:', error);
+            alert('Failed to save board. Please try again.');
+        } finally {
+            setIsSavingBoard(false);
+        }
+    };
+
+    const handleBoardSelect = (boardId: string) => {
+        loadBoard(boardId);
+        setIsBoardManagerOpen(false);
+        onBoardChange?.(boardId);
+    };
+
+    const handleBoardCreate = (boardId: string) => {
+        loadBoard(boardId);
+        setIsBoardManagerOpen(false);
+        onBoardChange?.(boardId);
+    };
+
+    // Mark as having unsaved changes when nodes/connections change
+    useEffect(() => {
+        if (currentBoardId) {
+            setHasUnsavedChanges(true);
+        }
+    }, [nodes, connections, currentBoardId]);
 
     // --- Helpers ---
     const getWorldMousePos = (e: React.MouseEvent) => {
@@ -656,8 +798,50 @@ export const Whiteboard: React.FC = () => {
                  )}
              </div>
 
+             {/* UI: Top Bar */}
+             <div className="absolute top-4 left-4 right-4 flex items-center justify-between z-20">
+                 {/* Board Info */}
+                 <div className="flex items-center gap-4">
+                     <div className="bg-white rounded-lg shadow border border-slate-200 px-4 py-2">
+                         <div className="text-sm font-medium text-slate-800">{boardTitle}</div>
+                         <div className="text-xs text-slate-500">
+                             {currentBoardId ? `${nodes.length} nodes` : 'No board loaded'}
+                             {hasUnsavedChanges && <span className="text-orange-500 ml-2">• Unsaved changes</span>}
+                         </div>
+                     </div>
+                 </div>
+
+                 {/* Board Management */}
+                 <div className="flex items-center gap-2">
+                     <button
+                         onClick={() => setIsBoardManagerOpen(true)}
+                         className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-2 hover:bg-slate-50 transition-colors"
+                         title="Open Board Manager"
+                     >
+                         <FolderOpen size={16} className="text-slate-600" />
+                         <span className="text-sm text-slate-700">Boards</span>
+                     </button>
+
+                     {currentBoardId && (
+                         <button
+                             onClick={saveBoard}
+                             disabled={isSavingBoard}
+                             className="flex items-center gap-2 bg-blue-600 text-white rounded-lg px-3 py-2 hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                             title="Save Board"
+                         >
+                             {isSavingBoard ? (
+                                 <Loader2 size={16} className="animate-spin" />
+                             ) : (
+                                 <Save size={16} />
+                             )}
+                             <span className="text-sm">Save</span>
+                         </button>
+                     )}
+                 </div>
+             </div>
+
              {/* UI: Toolbar */}
-             <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-lg border border-slate-100 p-2 flex gap-2">
+             <div className="absolute top-16 left-1/2 -translate-x-1/2 bg-white rounded-full shadow-lg border border-slate-100 p-2 flex gap-2">
                  <button onClick={() => addNode({ id: Date.now().toString(), type: 'text', content: '', position: { x: -transform.x/transform.scale + 100, y: -transform.y/transform.scale + 100 }, title: 'Note' })} className="p-2 hover:bg-slate-100 rounded-full text-slate-600" title="Sticky Note">
                      <StickyNote size={20} />
                  </button>
@@ -668,8 +852,28 @@ export const Whiteboard: React.FC = () => {
                  <button onClick={() => fileInputRef.current?.click()} className="p-2 hover:bg-slate-100 rounded-full text-slate-600" title="Upload Media">
                      <ImageIcon size={20} />
                  </button>
-                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" onChange={(e) => { if(e.target.files?.[0]) handleDrop({ preventDefault:()=>{}, dataTransfer: { files: e.target.files }, clientX: 500, clientY: 500 } as any); }} />
+                 <input type="file" ref={fileInputRef} className="hidden" accept="image/*,video/*,application/pdf" onChange={(e) => { const files = (e.target as HTMLInputElement).files; if(files?.[0]) handleDrop({ preventDefault:()=>{}, dataTransfer: { files }, clientX: 500, clientY: 500 } as any); }} />
              </div>
+
+             {/* Board Manager Modal */}
+             {isBoardManagerOpen && (
+                 <BoardManager
+                     currentBoardId={currentBoardId}
+                     onBoardSelect={handleBoardSelect}
+                     onBoardCreate={handleBoardCreate}
+                     onClose={() => setIsBoardManagerOpen(false)}
+                 />
+             )}
+
+             {/* Loading Overlay */}
+             {isLoadingBoard && (
+                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center z-30">
+                     <div className="bg-white rounded-lg shadow-lg p-6 flex items-center gap-3">
+                         <Loader2 size={24} className="animate-spin text-blue-500" />
+                         <span className="text-slate-700">Loading board...</span>
+                     </div>
+                 </div>
+             )}
 
              {/* UI: Context Menu */}
              {contextMenu && (

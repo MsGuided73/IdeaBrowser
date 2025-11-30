@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "cp": "git add . && git commit -m \"$1\" && git push origin main"
   },
   "dependencies": {
     "react": "^19.2.0",
