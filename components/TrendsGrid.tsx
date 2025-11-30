@@ -26,9 +26,9 @@ export const TrendsGrid: React.FC = () => {
                             </div>
                         </div>
                         
-                        <div className="h-24 w-full mb-4">
+                        <div className="h-24 w-full mb-4" style={{ minHeight: '96px', minWidth: '200px' }}>
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trend.data}>
+                                <AreaChart data={trend.data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
                                     <defs>
                                         <linearGradient id={`grad-${index}`} x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
