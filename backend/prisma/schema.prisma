@@ -26,8 +26,15 @@ model User {
   updatedAt    DateTime @updatedAt
 
   // Relations
-  boards Board[]
-  nodes  Node[]
+  boards         Board[]
+  nodes          Node[]
+  businessIdeas  BusinessIdea[]
+  preferences    UserPreferences?
+  collections    IdeaCollection[]
+  sharedIdeas    IdeaShare[]     @relation("SharedBy")
+  receivedShares IdeaShare[]     @relation("SharedWith")
+  comments       IdeaComment[]
+  generationLogs IdeaGenerationLog[]
 
   @@index([email])
 }
@@ -245,4 +252,315 @@ enum JobStatus {
   PROCESSING
   COMPLETED
   FAILED
+}
+
+// ================================
+// BUSINESS IDEAS (Generated & Saved Ideas)
+// ================================
+
+model BusinessIdea {
+  id                    String               @id @default(uuid())
+  userId                String
+  title                 String
+  date                  DateTime
+  tags                  String[]             // PostgreSQL array for tags
+  description           String               @db.Text
+  priceRange            String
+  trendKeyword          String
+  trendVolume           String?
+  trendGrowth           String?
+  relatedKeywords       String[]             // PostgreSQL array for keywords
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  // Relations
+  user                  User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  trendData             TrendDataPoint[]
+  kpi                   BusinessIdeaKPI?
+  businessFit           BusinessIdeaFit?
+  sections              BusinessIdeaSections?
+  communitySignals      BusinessIdeaCommunitySignals?
+  sources               BusinessIdeaSource[]
+  valueLadder           ValueLadderStep[]
+  shares                IdeaShare[]          // Ideas shared by this user
+  comments              IdeaComment[]
+  collections           CollectionIdea[]     // Collections this idea belongs to
+  generationLogs        IdeaGenerationLog[]
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([trendKeyword])
+}
+
+// Trend Data Points
+model TrendDataPoint {
+  id            String       @id @default(uuid())
+  businessIdeaId String
+  date          String       // e.g., "2024", "Q1 2024"
+  value         Float
+  createdAt     DateTime     @default(now())
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+
+  @@index([businessIdeaId])
+}
+
+// KPI Scores
+model BusinessIdeaKPI {
+  id            String       @id @default(uuid())
+  businessIdeaId String      @unique
+
+  opportunityScore   Int
+  opportunityLabel   String
+  problemScore       Int
+  problemLabel       String
+  feasibilityScore   Int
+  feasibilityLabel   String
+  whyNowScore        Int
+  whyNowLabel        String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+}
+
+// Business Fit Analysis
+model BusinessIdeaFit {
+  id            String       @id @default(uuid())
+  businessIdeaId String      @unique
+
+  revenuePotential                String
+  revenuePotentialDescription     String?  @db.Text
+  executionDifficulty             Int      // 1-10 scale
+  executionDifficultyDescription  String?  @db.Text
+  goToMarket                      Int      // 1-10 scale
+  goToMarketDescription           String?  @db.Text
+  founderFitDescription           String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+}
+
+// Business Sections (Analysis)
+model BusinessIdeaSections {
+  id            String       @id @default(uuid())
+  businessIdeaId String      @unique
+
+  whyNow         String       @db.Text
+  proofAndSignals String      @db.Text
+  marketGap      String       @db.Text
+  executionPlan  String       @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+}
+
+// Community Signals
+model BusinessIdeaCommunitySignals {
+  id            String       @id @default(uuid())
+  businessIdeaId String      @unique
+
+  reddit    String?  @db.Text
+  facebook  String?  @db.Text
+  youtube   String?  @db.Text
+  other     String?  @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+}
+
+// AI Grounding Sources
+model BusinessIdeaSource {
+  id            String       @id @default(uuid())
+  businessIdeaId String
+
+  title String
+  uri   String
+
+  createdAt DateTime @default(now())
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+
+  @@index([businessIdeaId])
+}
+
+// Value Ladder Steps
+model ValueLadderStep {
+  id            String       @id @default(uuid())
+  businessIdeaId String
+
+  type           String      // e.g., 'Lead Magnet', 'Frontend Offer', 'Core Offer', 'Continuity Program', 'Backend Offer'
+  title          String
+  description    String      @db.Text
+  price          String
+  valueProvided  String      @db.Text  // The specific value to the customer
+  goal           String      @db.Text  // The strategic goal of this step
+
+  order         Int          @default(0)  // Order in the value ladder
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+
+  @@index([businessIdeaId])
+  @@index([businessIdeaId, order])
+}
+
+// ================================
+// USER PREFERENCES & SETTINGS
+// ================================
+
+model UserPreferences {
+  id                    String   @id @default(uuid())
+  userId                String   @unique
+
+  // Idea Generation Preferences
+  preferredIndustries   String[] // PostgreSQL array
+  preferredBusinessModels String[] // PostgreSQL array
+  riskTolerance        Int?     // 1-10 scale
+  budgetRange          String[] // PostgreSQL array
+
+  // UI Preferences
+  theme                String   @default("light") // "light", "dark", "auto"
+  defaultView          String   @default("home")  // "home", "my-ideas", "whiteboard"
+  notificationsEnabled Boolean  @default(true)
+
+  // AI Settings
+  aiTemperature        Float    @default(0.7)
+  maxTokens           Int      @default(4096)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ================================
+// IDEA COLLECTIONS & FAVORITES
+// ================================
+
+model IdeaCollection {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?  @db.Text
+  isPublic    Boolean  @default(false)
+  tags        String[] // PostgreSQL array for collection tags
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  user        User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  ideas       CollectionIdea[]
+
+  @@index([userId])
+  @@index([isPublic])
+}
+
+model CollectionIdea {
+  id            String   @id @default(uuid())
+  collectionId  String
+  businessIdeaId String
+  addedAt       DateTime @default(now())
+
+  // Relations
+  collection   IdeaCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  businessIdea BusinessIdea   @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+
+  @@unique([collectionId, businessIdeaId])
+  @@index([collectionId])
+  @@index([businessIdeaId])
+}
+
+// ================================
+// IDEA SHARING & COMMENTS
+// ================================
+
+model IdeaShare {
+  id            String   @id @default(uuid())
+  businessIdeaId String
+  sharedByUserId String
+  sharedWithUserId String?
+  shareToken    String  @unique // For public sharing
+  isPublic      Boolean @default(false)
+  canEdit       Boolean @default(false)
+  expiresAt     DateTime?
+  createdAt     DateTime @default(now())
+
+  // Relations
+  businessIdea  BusinessIdea @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+  sharedBy      User         @relation("SharedBy", fields: [sharedByUserId], references: [id])
+  sharedWith    User?        @relation("SharedWith", fields: [sharedWithUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessIdeaId])
+  @@index([shareToken])
+  @@index([expiresAt])
+}
+
+model IdeaComment {
+  id            String   @id @default(uuid())
+  businessIdeaId String
+  userId        String
+  parentId      String?  // For threaded comments
+  content       String   @db.Text
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  businessIdea BusinessIdea  @relation(fields: [businessIdeaId], references: [id], onDelete: Cascade)
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent       IdeaComment?  @relation("CommentThread", fields: [parentId], references: [id])
+  replies      IdeaComment[] @relation("CommentThread")
+
+  @@index([businessIdeaId])
+  @@index([userId])
+  @@index([parentId])
+  @@index([createdAt])
+}
+
+// ================================
+// ANALYTICS & USAGE TRACKING
+// ================================
+
+model IdeaGenerationLog {
+  id            String   @id @default(uuid())
+  userId        String
+  businessIdeaId String?
+
+  // Request details
+  prompt        String?  @db.Text
+  modelUsed     String   // e.g., "gemini-3-pro-preview"
+  tokensUsed    Int?
+
+  // Response details
+  success       Boolean
+  errorMessage  String?  @db.Text
+
+  // Timing
+  processingTimeMs Int?
+  createdAt       DateTime @default(now())
+
+  // Relations
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessIdea BusinessIdea? @relation(fields: [businessIdeaId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([businessIdeaId])
+  @@index([createdAt])
 }

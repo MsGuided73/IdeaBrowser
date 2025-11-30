@@ -339,6 +339,220 @@ Please provide a comprehensive analysis.`;
 };
 
 // ================================
+// BUSINESS IDEAS API FUNCTIONS
+// ================================
+
+export interface BusinessIdea {
+  id: string;
+  userId: string;
+  title: string;
+  date: Date;
+  tags: string[];
+  description: string;
+  priceRange: string;
+  trendKeyword: string;
+  trendVolume?: string;
+  trendGrowth?: string;
+  relatedKeywords: string[];
+  createdAt: string;
+  updatedAt: string;
+  trendData?: Array<{ date: string; value: number }>;
+  kpi?: {
+    opportunity: { score: number; label: string };
+    problem: { score: number; label: string };
+    feasibility: { score: number; label: string };
+    whyNow: { score: number; label: string };
+  };
+  businessFit?: {
+    revenuePotential: string;
+    revenuePotentialDescription?: string;
+    executionDifficulty: number;
+    executionDifficultyDescription?: string;
+    goToMarket: number;
+    goToMarketDescription?: string;
+    founderFitDescription?: string;
+  };
+  sections?: {
+    whyNow: string;
+    proofAndSignals: string;
+    marketGap: string;
+    executionPlan: string;
+  };
+  communitySignals?: {
+    reddit?: string;
+    facebook?: string;
+    youtube?: string;
+    other?: string;
+  };
+  sources?: Array<{ title: string; uri: string }>;
+  valueLadder?: Array<{
+    type: string;
+    title: string;
+    description: string;
+    price: string;
+    valueProvided: string;
+    goal: string;
+  }>;
+}
+
+export interface IdeaCollection {
+  id: string;
+  userId: string;
+  name: string;
+  description?: string;
+  isPublic: boolean;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
+  ideas: Array<{
+    businessIdea: {
+      id: string;
+      title: string;
+      tags: string[];
+      createdAt: string;
+    };
+  }>;
+}
+
+export interface CreateBusinessIdeaRequest {
+  title: string;
+  description: string;
+  tags?: string[];
+  priceRange?: string;
+  trendKeyword?: string;
+  trendVolume?: string;
+  trendGrowth?: string;
+  relatedKeywords?: string[];
+  trendData?: Array<{ date: string; value: number }>;
+  kpi?: any;
+  businessFit?: any;
+  sections?: any;
+  communitySignals?: any;
+  sources?: Array<{ title: string; uri: string }>;
+}
+
+export const businessIdeasApi = {
+  // Get all business ideas for the user
+  async getIdeas(params?: {
+    page?: number;
+    limit?: number;
+    search?: string;
+    tags?: string[];
+  }): Promise<{
+    ideas: BusinessIdea[];
+    pagination: {
+      page: number;
+      limit: number;
+      total: number;
+      pages: number;
+    };
+  }> {
+    const queryParams = new URLSearchParams();
+    if (params?.page) queryParams.set('page', params.page.toString());
+    if (params?.limit) queryParams.set('limit', params.limit.toString());
+    if (params?.search) queryParams.set('search', params.search);
+    if (params?.tags?.length) queryParams.set('tags', params.tags.join(','));
+
+    const queryString = queryParams.toString();
+    const endpoint = `/business-ideas${queryString ? `?${queryString}` : ''}`;
+
+    const response = await apiRequest<{
+      status: string;
+      data: {
+        ideas: BusinessIdea[];
+        pagination: {
+          page: number;
+          limit: number;
+          total: number;
+          pages: number;
+        };
+      };
+    }>(endpoint);
+
+    return response.data;
+  },
+
+  // Create a new business idea
+  async createIdea(data: CreateBusinessIdeaRequest): Promise<BusinessIdea> {
+    const response = await apiRequest<{
+      status: string;
+      data: { idea: BusinessIdea };
+    }>('/business-ideas', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data.idea;
+  },
+
+  // Get a specific business idea
+  async getIdea(ideaId: string): Promise<BusinessIdea> {
+    const response = await apiRequest<{
+      status: string;
+      data: { idea: BusinessIdea };
+    }>(`/business-ideas/${ideaId}`);
+    return response.data.idea;
+  },
+
+  // Update a business idea
+  async updateIdea(ideaId: string, data: Partial<CreateBusinessIdeaRequest>): Promise<BusinessIdea> {
+    const response = await apiRequest<{
+      status: string;
+      data: { idea: BusinessIdea };
+    }>(`/business-ideas/${ideaId}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    return response.data.idea;
+  },
+
+  // Delete a business idea
+  async deleteIdea(ideaId: string): Promise<void> {
+    await apiRequest(`/business-ideas/${ideaId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  // Get user's collections
+  async getCollections(): Promise<{
+    collections: IdeaCollection[];
+  }> {
+    const response = await apiRequest<{
+      status: string;
+      data: { collections: IdeaCollection[] };
+    }>('/business-ideas/collections');
+    return response.data;
+  },
+
+  // Create a new collection
+  async createCollection(data: {
+    name: string;
+    description?: string;
+    tags?: string[];
+    isPublic?: boolean;
+  }): Promise<IdeaCollection> {
+    const response = await apiRequest<{
+      status: string;
+      data: { collection: IdeaCollection };
+    }>('/business-ideas/collections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.data.collection;
+  },
+
+  // Add idea to collection
+  async addIdeaToCollection(collectionId: string, ideaId: string): Promise<any> {
+    const response = await apiRequest<{
+      status: string;
+      data: { collectionIdea: any };
+    }>(`/business-ideas/collections/${collectionId}/ideas/${ideaId}`, {
+      method: 'POST',
+    });
+    return response.data.collectionIdea;
+  },
+};
+
+// ================================
 // WEBSOCKET CLIENT
 // ================================
 
