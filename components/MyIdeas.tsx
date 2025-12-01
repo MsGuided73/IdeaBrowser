@@ -47,21 +47,49 @@ export const MyIdeas: React.FC<MyIdeasProps> = ({ onNavigateHome, onSelectIdea, 
 
   const handleAnalyze = async () => {
      if (!input.trim() && !selectedFile) return;
-     
+
      setIsAnalyzing(true);
      try {
         let mediaPart;
         if (selectedFile) {
             mediaPart = await fileToGenerativePart(selectedFile.file);
         }
+
+        console.log('Analyzing idea with input:', input.substring(0, 100) + '...');
+        console.log('Media part included:', !!mediaPart);
+
         const idea = await analyzeUserIdea(input, mediaPart);
+
+        // Validate the response
+        if (!idea || !idea.title || idea.title === 'Untitled Idea') {
+          throw new Error('Invalid response from AI service - idea appears incomplete');
+        }
+
+        console.log('Idea generated successfully:', idea.title);
         onAddIdea(idea);
         setView('list');
         setInput('');
         setSelectedFile(null);
-     } catch (e) {
-        console.error(e);
-        alert("Failed to analyze idea. Please check your API key or try again.");
+
+        // Show success message
+        alert(`✅ "${idea.title}" has been added to your ideas!`);
+
+     } catch (e: any) {
+        console.error('Analysis error:', e);
+
+        let errorMessage = "Failed to analyze idea.";
+
+        if (e.message?.includes('API_KEY')) {
+          errorMessage = "Please check your Gemini API key in the environment variables.";
+        } else if (e.message?.includes('Invalid response')) {
+          errorMessage = "The AI service returned an incomplete response. Please try rephrasing your idea description.";
+        } else if (e.message?.includes('network') || e.message?.includes('fetch')) {
+          errorMessage = "Network error. Please check your internet connection and try again.";
+        } else if (e.message) {
+          errorMessage = `Error: ${e.message}`;
+        }
+
+        alert(errorMessage + " Please try again or use the modal on the home page.");
      } finally {
         setIsAnalyzing(false);
      }

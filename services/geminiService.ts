@@ -187,11 +187,14 @@ export const generateBusinessIdea = async (): Promise<BusinessIdea> => {
 };
 
 export const analyzeUserIdea = async (userDescription: string, media?: { data: string, mimeType: string }): Promise<BusinessIdea> => {
+  console.log('🔍 Starting analyzeUserIdea with description:', userDescription.substring(0, 100) + '...');
+  console.log('📎 Media included:', !!media);
+
   const modelId = 'gemini-3-pro-preview';
 
   const prompt = `
     Act as a world-class venture capitalist and Product UX Expert.
-    
+
     ${media ? 'Analyze the attached image/video and the context below.' : 'Analyze the following idea description.'}
     User's Idea Concept: "${userDescription}"
 
@@ -200,7 +203,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
     2. Identify 4-6 keyword variations (Long-tail, Problem-Aware, Solution-Aware) that users are actually searching for.
     3. Synthesize a complete business analysis.
     4. Create a detailed 5-step Value Ladder strategy.
-    
+
     The JSON must strictly match this schema:
     {
       "title": "String (Refine the user's title to be catchy)",
@@ -210,7 +213,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       "relatedKeywords": ["String", "String", "String", "String", "String"],
       "trendVolume": "String (Estimate monthly search volume, e.g. '12.5K')",
       "trendGrowth": "String (Estimate YoY growth, e.g. '+150%')",
-      "trendData": [{ "date": "String", "value": Number }], 
+      "trendData": [{ "date": "String", "value": Number }],
       "kpi": {
         "opportunity": { "score": Number (1-10), "label": "String" },
         "problem": { "score": Number (1-10), "label": "String" },
@@ -228,10 +231,10 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       },
       "sections": {
         "offer": [
-            { 
-              "type": "String (Must be one of: Lead Magnet, Frontend Offer, Core Offer, Continuity Program, Backend Offer)", 
-              "title": "String", 
-              "description": "String", 
+            {
+              "type": "String (Must be one of: Lead Magnet, Frontend Offer, Core Offer, Continuity Program, Backend Offer)",
+              "title": "String",
+              "description": "String",
               "price": "String",
               "valueProvided": "String (The specific value to the customer)",
               "goal": "String (The strategic goal of this step)"
@@ -249,7 +252,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
         "other": "String"
       }
     }
-    
+
     Ensure 'sections.offer' has exactly 5 items corresponding to the Value Ladder steps.
     **IMPORTANT**: Populate the 'sections' with robust, multi-sentence analysis.
   `;
@@ -260,6 +263,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
   }
 
   try {
+    console.log('🤖 Calling Gemini API...');
     const response = await ai.models.generateContent({
       model: modelId,
       contents: { parts },
@@ -269,15 +273,23 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
       },
     });
 
+    console.log('📄 Gemini response received, length:', response.text?.length || 0);
+    console.log('📄 Response preview:', response.text?.substring(0, 200) + '...');
+
     const parsedIdea = parseGeminiResponse(response.text || '');
+    console.log('🔧 Parsed idea:', { title: parsedIdea.title, hasDescription: !!parsedIdea.description });
+
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks
       ?.filter(c => c.web?.uri && c.web?.title)
       .map(c => ({ title: c.web!.title!, uri: c.web!.uri! })) || [];
 
-    return hydrateIdea(parsedIdea, sources);
+    const finalIdea = hydrateIdea(parsedIdea, sources);
+    console.log('✅ Final idea created:', { title: finalIdea.title, hasDescription: !!finalIdea.description });
+
+    return finalIdea;
 
   } catch (error) {
-    console.error("Gemini API Error:", error);
+    console.error("❌ Gemini API Error in analyzeUserIdea:", error);
     throw error;
   }
 };
