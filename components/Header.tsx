@@ -1,8 +1,9 @@
 
 import React, { useState, useRef } from 'react';
-import { User, ChevronDown, Sparkles, Database, TrendingUp, Users, LayoutGrid } from 'lucide-react';
+import { User, ChevronDown, Sparkles, Database, TrendingUp, Users, LayoutGrid, LogOut, Settings } from 'lucide-react';
 import { Logo } from './Logo';
 import { ViewState } from '../types';
+import { useAuth } from '../src/contexts/AuthContext';
 
 interface HeaderProps {
   onNavigate?: (page: ViewState) => void;
@@ -11,6 +12,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const timeoutRef = useRef<number | null>(null);
+  const { user, logout } = useAuth();
 
   const handleMouseEnter = (menu: string) => {
     if (timeoutRef.current) {
@@ -134,13 +136,46 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
         </nav>
 
         <div className="flex items-center gap-3">
-           <button className="flex items-center gap-2 border rounded-full px-3 py-1.5 text-sm hover:bg-slate-50">
-             <div className="w-6 h-6 bg-slate-200 rounded-full flex items-center justify-center overflow-hidden">
-                <User size={14} className="text-slate-500"/>
-             </div>
-             <span className="text-slate-700">dcbenson73</span>
-             <ChevronDown size={14} className="text-slate-400"/>
-           </button>
+          {user ? (
+            <div className="relative">
+              <button
+                className="flex items-center gap-2 border rounded-full px-3 py-1.5 text-sm hover:bg-slate-50"
+                onClick={() => setActiveDropdown(activeDropdown === 'user' ? null : 'user')}
+              >
+                <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
+                  <User size={14} className="text-blue-600" />
+                </div>
+                <span className="text-slate-700">{user.name}</span>
+                <ChevronDown size={14} className="text-slate-400" />
+              </button>
+
+              {activeDropdown === 'user' && (
+                <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-100 py-2 z-50">
+                  <div className="px-4 py-3 border-b border-slate-100">
+                    <p className="text-sm font-medium text-gray-900">{user.name}</p>
+                    <p className="text-sm text-gray-500">{user.email}</p>
+                  </div>
+
+                  <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2">
+                    <Settings size={16} />
+                    Account Settings
+                  </button>
+
+                  <button
+                    onClick={logout}
+                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                  >
+                    <LogOut size={16} />
+                    Sign Out
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-slate-600">
+              Loading...
+            </div>
+          )}
         </div>
       </div>
       

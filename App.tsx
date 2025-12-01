@@ -6,12 +6,14 @@ import { IdeaDetail } from './components/IdeaDetail';
 import { TrendsGrid } from './components/TrendsGrid';
 import { MyIdeas } from './components/MyIdeas';
 import { Whiteboard } from './components/Whiteboard';
+import { ProtectedRoute } from './src/components/Auth/ProtectedRoute';
+import { AuthProvider } from './src/contexts/AuthContext';
 import { Sparkles } from 'lucide-react';
 import { INITIAL_IDEA, GOLF_IDEA } from './constants';
 import { generateBusinessIdea } from './services/geminiService';
 import { BusinessIdea, ViewState } from './types';
 
-const App: React.FC = () => {
+const AppContent: React.FC = () => {
   const [currentIdea, setCurrentIdea] = useState<BusinessIdea>(INITIAL_IDEA);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +144,16 @@ const App: React.FC = () => {
       {/* Only show footer on standard pages */}
       {currentView !== 'whiteboard' && <Footer onNavigate={setCurrentView} />}
     </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <AuthProvider>
+      <ProtectedRoute>
+        <AppContent />
+      </ProtectedRoute>
+    </AuthProvider>
   );
 };
 

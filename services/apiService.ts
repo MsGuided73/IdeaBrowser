@@ -100,10 +100,13 @@ async function apiRequest<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${endpoint}`;
 
+  // Get auth token from global state or localStorage
+  const token = (window as any).__authToken || localStorage.getItem('authToken');
+
   const response = await fetch(url, {
     headers: {
       'Content-Type': 'application/json',
-      // Note: Using stub auth - no token needed in development
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
