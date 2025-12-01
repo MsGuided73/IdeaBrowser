@@ -10,6 +10,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import path from 'path'; // <-- NEW: used to locate frontend build
 
 import { env, isDevelopment } from './config/env';
 import { connectDatabase, initializeVectorExtension } from './config/database';
@@ -44,10 +45,12 @@ const io = new SocketIOServer(httpServer, {
 app.use(helmet());
 
 // CORS
-app.use(cors({
-  origin: isDevelopment ? '*' : ['http://localhost:3000'],
-  credentials: true,
-}));
+app.use(
+  cors({
+    origin: isDevelopment ? '*' : ['http://localhost:3000'],
+    credentials: true,
+  }),
+);
 
 // Request logging
 app.use(morgan(isDevelopment ? 'dev' : 'combined'));
@@ -85,7 +88,7 @@ app.use('/api/boards', boardsRoutes);
 app.use('/api/youtube', youtubeRoutes);
 app.use('/api/business-ideas', businessIdeasRoutes);
 
-// Root endpoint
+// Root endpoint (API info)
 app.get('/', (req, res) => {
   res.json({
     name: 'BizWiz NeuroBoard API',
@@ -98,6 +101,29 @@ app.get('/', (req, res) => {
     },
   });
 });
+
+// ================================
+// FRONTEND STATIC FILES (PROD)
+// ================================
+
+if (!isDevelopment) {
+  // In the Docker image, the Vite build is copied to /app/frontend.
+  // At runtime, compiled server.js lives in /app/backend/dist, so
+  // ../frontend from there resolves to /app/frontend.
+  const frontendPath = path.join(__dirname, '../frontend');
+
+  // Serve static assets (JS, CSS, images, etc.)
+  app.use(express.static(frontendPath));
+
+  // For non-API, non-health routes, serve index.html and let the frontend router handle it
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api') || req.path.startsWith('/health')) {
+      return next();
+    }
+
+    res.sendFile(path.join(frontendPath, 'index.html'));
+  });
+}
 
 // ================================
 // WEBSOCKET HANDLERS
