@@ -26,9 +26,9 @@ export const TrendsGrid: React.FC = () => {
                             </div>
                         </div>
                         
-                        <div className="h-24 w-full mb-4" style={{ minHeight: '96px', minWidth: '200px' }}>
+                        <div className="h-24 w-full mb-4">
                             <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={trend.data} margin={{ top: 5, right: 5, left: 5, bottom: 5 }}>
+                                <AreaChart data={trend.data}>
                                     <defs>
                                         <linearGradient id={`grad-${index}`} x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
@@ -49,7 +49,7 @@ export const TrendsGrid: React.FC = () => {
             
              <div className="text-center mt-12">
                 <button className="bg-blue-600 text-white px-6 py-2.5 rounded-full text-sm font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200">
-                    See all trends {'->'} 
+                    See all trends -&gt;
                 </button>
             </div>
         </div>

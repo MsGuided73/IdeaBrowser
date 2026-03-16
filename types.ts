@@ -74,24 +74,24 @@ export interface DraftIdea {
   icon?: React.ReactNode;
 }
 
+export type ViewState = 'home' | 'my-ideas' | 'generator';
+
+export interface WhiteboardNode {
+  id: string;
+  type: 'text' | 'image' | 'video' | 'audio' | 'pdf' | 'link' | 'youtube' | 'ai-partner';
+  content: string;
+  position: { x: number; y: number };
+  width?: number;
+  height?: number;
+  title?: string;
+  color?: string;
+  groupId?: string;
+  mimeType?: string;
+  fileName?: string;
+}
+
 export interface Connection {
   id: string;
   from: string;
   to: string;
 }
-
-export interface WhiteboardNode {
-  id: string;
-  type: 'text' | 'image' | 'video' | 'audio' | 'link' | 'pdf' | 'youtube' | 'ai-partner';
-  content: string; // text content or base64 data string or url
-  position: { x: number; y: number };
-  width?: number;
-  height?: number;
-  title: string;
-  mimeType?: string; // for files
-  fileName?: string;
-  color?: string; // New: For sticky notes or organization
-  groupId?: string; // New: For grouping nodes together
-}
-
-export type ViewState = 'home' | 'my-ideas' | 'whiteboard';

@@ -6,16 +6,17 @@ import {
   Download, Flag, ChevronDown, ChevronUp, Send, X, Loader2, Sparkles, Copy, 
   BarChart3, Twitter, Linkedin, Link as LinkIcon, Maximize2, Pencil, Save, Code, Terminal, FileText,
   Layout, Calendar, Mail, Users, Search, Megaphone, Box, FileCode, DollarSign, PieChart, Eye, BookOpen,
-  FileDown
+  FileDown, GitBranch
 } from 'lucide-react';
 import { BusinessIdea, ValueLadderStep } from '../types';
 import { TrendChart } from './TrendChart';
-import { createIdeaChatSession, generateArtifact, generateSectionDeepDive, generateFullAnalysis } from '../services/geminiService';
+import { createIdeaChatSession, generateArtifact, generateSectionDeepDive, generateFullAnalysis, forkIdea } from '../services/geminiService';
 import { Chat } from '@google/genai';
 
 interface IdeaDetailProps {
-  idea: BusinessIdea;
+  idea: BusinessIdea | null;
   loading: boolean;
+  loadingStatus?: string | null;
   onSaveIdea: (idea: BusinessIdea) => void;
   onUpdateIdea: (idea: BusinessIdea) => void;
   isSaved: boolean;
@@ -95,9 +96,9 @@ const TEMPLATE_CATEGORIES = [
   }
 ];
 
-export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIdea, onUpdateIdea, isSaved }) => {
+export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, loadingStatus, onSaveIdea, onUpdateIdea, isSaved }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editedIdea, setEditedIdea] = useState<BusinessIdea>(idea);
+  const [editedIdea, setEditedIdea] = useState<BusinessIdea>(idea as BusinessIdea);
   const [expandedCategories, setExpandedCategories] = useState<Record<string, boolean>>({'popular': true});
   
   // Modal States
@@ -112,13 +113,15 @@ export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIde
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    setEditedIdea(idea);
+    if (idea) {
+      setEditedIdea(idea);
+    }
     setChatMessages([]);
     setChatSession(null);
   }, [idea]);
 
   useEffect(() => {
-    if (activeModal === 'chat' && !chatSession) {
+    if (activeModal === 'chat' && !chatSession && idea) {
       const session = createIdeaChatSession(idea);
       setChatSession(session);
       setChatMessages([{ role: 'model', text: `Hi! I'm ready to discuss "${idea.title}". Ask me anything about execution, market risks, or strategy.` }]);
@@ -142,7 +145,7 @@ export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIde
   };
 
   const handleCancel = () => {
-    setEditedIdea(idea);
+    if (idea) setEditedIdea(idea);
     setIsEditing(false);
   };
 
@@ -213,6 +216,24 @@ export const IdeaDetail: React.FC<IdeaDetailProps> = ({ idea, loading, onSaveIde
       const content = await generateFullAnalysis(editedIdea);
       setModalContent({ title: 'Investment Memo & Deep Dive', content });
       setIsGenerating(false);
+  };
+
+  const handleForkIdea = async () => {
+    if (chatMessages.length === 0) return;
+    
+    setActiveModal('content');
+    setIsGenerating(true);
+    setModalContent({ title: 'Forking Idea...', content: 'Analyzing chat history to generate a new niche-specific business report...' });
+    
+    try {
+      const newIdea = await forkIdea(idea, chatMessages);
+      onSaveIdea(newIdea);
+      onUpdateIdea(newIdea);
+      setActiveModal(null);
+    } catch (e) {
+      setModalContent({ title: 'Error', content: 'Failed to fork idea.' });
+      setIsGenerating(false);
+    }
   };
 
   const handleDownloadDossier = () => {
@@ -344,17 +365,25 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-12 animate-pulse">
-        <div className="h-8 bg-slate-200 rounded w-3/4 mb-4"></div>
-        <div className="h-4 bg-slate-200 rounded w-1/2 mb-8"></div>
-        <div className="h-64 bg-slate-100 rounded-xl mb-8"></div>
-        <div className="grid grid-cols-3 gap-4">
-            <div className="h-32 bg-slate-100 rounded-xl"></div>
-            <div className="h-32 bg-slate-100 rounded-xl"></div>
-            <div className="h-32 bg-slate-100 rounded-xl"></div>
+      <div className="max-w-5xl mx-auto px-4 py-12 flex flex-col items-center justify-center min-h-[50vh]">
+        <div className="relative mb-8">
+            <div className="absolute inset-0 bg-indigo-100 rounded-full animate-ping opacity-20"></div>
+            <div className="relative bg-white p-4 rounded-full shadow-xl border border-indigo-50">
+               <Loader2 size={48} className="text-indigo-600 animate-spin" />
+            </div>
         </div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">
+            {loadingStatus || 'Generating Idea...'}
+        </h2>
+        <p className="text-slate-500 max-w-md animate-pulse text-center">
+            Our AI agents are searching live sources, identifying gaps, and validating opportunities.
+        </p>
       </div>
     );
+  }
+
+  if (!idea || !editedIdea) {
+    return null;
   }
 
   return (
@@ -774,8 +803,8 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
                       <button 
                           onClick={() => handleDeepDive('communitySignals')}
                           className="w-full py-3 text-center text-sm font-bold text-blue-600 hover:bg-blue-50 rounded transition-colors border border-transparent hover:border-blue-100"
-                        >
-                          View detailed breakdown {'->'} 
+                      >
+                          View detailed breakdown -&gt;
                       </button>
                   </div>
               </div>
@@ -811,6 +840,11 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
                           )}
                       </h3>
                       <div className="flex items-center gap-2">
+                        {activeModal === 'chat' && chatMessages.length > 1 && (
+                             <button onClick={handleForkIdea} className="px-3 py-1.5 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-full text-sm font-bold flex items-center gap-1 transition-colors">
+                                 <GitBranch size={16} /> Fork Idea
+                             </button>
+                        )}
                         {activeModal === 'content' && (
                              <button onClick={handleModalShare} className="p-2 hover:bg-slate-100 rounded-full text-slate-400 hover:text-blue-600" title="Copy to Clipboard">
                                  <Copy size={18} />

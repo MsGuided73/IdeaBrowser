@@ -6,7 +6,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     return {
       server: {
-        port: 5173,
+        port: 3000,
         host: '0.0.0.0',
       },
       plugins: [react()],
@@ -17,8 +17,7 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
-        },
-        dedupe: ['react', 'react-dom']
+        }
       }
     };
 });
