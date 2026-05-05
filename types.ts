@@ -56,6 +56,7 @@ export interface BusinessIdea {
     other: string;
   };
   sources?: { title: string; uri: string }[]; // For AI grounding sources
+  savedReports?: { title: string; content: string; date: string }[];
 }
 
 export interface MarketTrend {
@@ -74,7 +75,7 @@ export interface DraftIdea {
   icon?: React.ReactNode;
 }
 
-export type ViewState = 'home' | 'my-ideas' | 'generator';
+export type ViewState = 'home' | 'my-ideas' | 'generator' | 'history';
 
 export interface WhiteboardNode {
   id: string;

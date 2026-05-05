@@ -6,6 +6,7 @@ import { IdeaDetail } from './components/IdeaDetail';
 import { TrendsGrid } from './components/TrendsGrid';
 import { MyIdeas } from './components/MyIdeas';
 import { IdeaGenerator } from './components/IdeaGenerator';
+import { IdeaHistory } from './components/IdeaHistory';
 import { Sparkles } from 'lucide-react';
 import { GOLF_IDEA } from './constants';
 import { generateBusinessIdea } from './services/geminiService';
@@ -17,7 +18,38 @@ const App: React.FC = () => {
   const [loadingStatus, setLoadingStatus] = useState<string | null>("Initializing Advanced Trend Analysis Module...");
   const [error, setError] = useState<string | null>(null);
   const [currentView, setCurrentView] = useState<ViewState>('home');
-  const [myIdeas, setMyIdeas] = useState<BusinessIdea[]>([GOLF_IDEA]);
+  const [myIdeas, setMyIdeas] = useState<BusinessIdea[]>(() => {
+    try {
+      const saved = localStorage.getItem('savedIdeas');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to parse saved ideas from localStorage", e);
+    }
+    return [GOLF_IDEA];
+  });
+
+  const [ideaHistory, setIdeaHistory] = useState<BusinessIdea[]>(() => {
+    try {
+      const saved = localStorage.getItem('ideaHistory');
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Failed to parse idea history from localStorage", e);
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    localStorage.setItem('savedIdeas', JSON.stringify(myIdeas));
+  }, [myIdeas]);
+
+  useEffect(() => {
+    localStorage.setItem('ideaHistory', JSON.stringify(ideaHistory));
+  }, [ideaHistory]);
+
   const initialized = useRef(false);
 
   const handleGenerateIdea = async () => {
@@ -39,6 +71,7 @@ const App: React.FC = () => {
     try {
       const newIdea = await generateBusinessIdea((status) => setLoadingStatus(status));
       setCurrentIdea(newIdea);
+      setIdeaHistory(prev => [newIdea, ...prev]);
     } catch (err) {
       setError("Failed to generate idea. The AI might be busy or the search quota exceeded. Please try again.");
       console.error(err);
@@ -67,6 +100,14 @@ const App: React.FC = () => {
     setCurrentIdea(updatedIdea);
     // If this idea exists in 'My Ideas', update it there too
     setMyIdeas(prev => prev.map(i => i.id === updatedIdea.id ? updatedIdea : i));
+  };
+
+  const handleDeleteIdea = (id: string) => {
+    setMyIdeas(prev => prev.filter(idea => idea.id !== id));
+    if (currentIdea && currentIdea.id === id) {
+      setCurrentIdea(null);
+      setCurrentView('my-ideas');
+    }
   };
 
   return (
@@ -139,6 +180,7 @@ const App: React.FC = () => {
           <IdeaGenerator 
             onIdeaGenerated={(idea) => {
               setCurrentIdea(idea);
+              setIdeaHistory(prev => [idea, ...prev]);
               setCurrentView('home');
               window.scrollTo({ top: 0, behavior: 'smooth' });
             }}
@@ -148,7 +190,24 @@ const App: React.FC = () => {
         {currentView === 'my-ideas' && (
           <MyIdeas 
               ideas={myIdeas}
-              onAddIdea={(newIdea) => setMyIdeas([newIdea, ...myIdeas])}
+              onAddIdea={(newIdea) => {
+                  setMyIdeas([newIdea, ...myIdeas]);
+                  setIdeaHistory(prev => [newIdea, ...prev]);
+              }}
+              onDeleteIdea={handleDeleteIdea}
+              onNavigateHome={() => setCurrentView('home')} 
+              onSelectIdea={(idea) => {
+                  setCurrentIdea(idea);
+                  setCurrentView('home');
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+          />
+        )}
+
+        {currentView === 'history' && (
+          <IdeaHistory 
+              history={ideaHistory}
+              onClearHistory={() => setIdeaHistory([])}
               onNavigateHome={() => setCurrentView('home')} 
               onSelectIdea={(idea) => {
                   setCurrentIdea(idea);

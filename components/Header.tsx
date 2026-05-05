@@ -125,6 +125,8 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
 
           <button onClick={() => handleNav('my-ideas')} className="hover:text-blue-600 flex items-center gap-1">Build Ideas <ChevronDown size={14}/></button>
           
+          <button onClick={() => handleNav('history')} className="hover:text-blue-600">History</button>
+          
           <button onClick={() => handleNav('home')} className="hover:text-blue-600">Pricing</button>
         </nav>
 

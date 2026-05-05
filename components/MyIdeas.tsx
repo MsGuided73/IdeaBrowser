@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { ArrowLeft, ArrowRight, PlusCircle, Sparkles, X, Loader2, Image as ImageIcon, Video, Paperclip } from 'lucide-react';
+import { ArrowLeft, ArrowRight, PlusCircle, Sparkles, X, Loader2, Image as ImageIcon, Video, Paperclip, Trash2 } from 'lucide-react';
 import { BusinessIdea } from '../types';
 import { TrendChart } from './TrendChart';
 import { MOCK_DRAFTS } from '../constants';
@@ -11,9 +11,10 @@ interface MyIdeasProps {
   onSelectIdea: (idea: BusinessIdea) => void;
   ideas: BusinessIdea[];
   onAddIdea: (idea: BusinessIdea) => void;
+  onDeleteIdea: (id: string) => void;
 }
 
-export const MyIdeas: React.FC<MyIdeasProps> = ({ onNavigateHome, onSelectIdea, ideas, onAddIdea }) => {
+export const MyIdeas: React.FC<MyIdeasProps> = ({ onNavigateHome, onSelectIdea, ideas, onAddIdea, onDeleteIdea }) => {
   const [view, setView] = useState<'list' | 'new'>('list');
   const [input, setInput] = useState('');
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -277,12 +278,25 @@ export const MyIdeas: React.FC<MyIdeasProps> = ({ onNavigateHome, onSelectIdea, 
                     <p className="text-base text-slate-600 mb-4 line-clamp-4 leading-relaxed">{idea.description}</p>
                     <div className="flex items-center justify-between">
                         <span className="text-xs text-slate-400">{idea.date}</span>
-                        <button 
-                           onClick={() => onSelectIdea(idea)}
-                           className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all"
-                        >
-                            View Research <ArrowRight size={14} />
-                        </button>
+                        <div className="flex items-center gap-4">
+                            <button 
+                               onClick={() => {
+                                   if(window.confirm('Are you sure you want to delete this saved idea?')) {
+                                       onDeleteIdea(idea.id);
+                                   }
+                               }}
+                               className="text-slate-400 hover:text-red-500 text-sm font-bold flex items-center gap-1 transition-all"
+                               title="Delete Idea"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                            <button 
+                               onClick={() => onSelectIdea(idea)}
+                               className="text-blue-600 text-sm font-bold flex items-center gap-1 hover:gap-2 transition-all"
+                            >
+                                View Research <ArrowRight size={14} />
+                            </button>
+                        </div>
                     </div>
                </div>
            </div>
