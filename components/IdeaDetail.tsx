@@ -6,12 +6,13 @@ import {
   Download, Flag, ChevronDown, ChevronUp, Send, X, Loader2, Sparkles, Copy, 
   BarChart3, Twitter, Linkedin, Link as LinkIcon, Maximize2, Pencil, Save, Code, Terminal, FileText,
   Layout, Calendar, Mail, Users, Search, Megaphone, Box, FileCode, DollarSign, PieChart, Eye, BookOpen,
-  FileDown, GitBranch
+  FileDown, GitBranch, Image as ImageIcon, Palette, PenTool
 } from 'lucide-react';
 import { BusinessIdea, ValueLadderStep } from '../types';
 import { TrendChart } from './TrendChart';
 import { createIdeaChatSession, generateArtifact, generateSectionDeepDive, generateFullAnalysis, forkIdea } from '../services/geminiService';
 import { Chat } from '@google/genai';
+import { jsPDF } from 'jspdf';
 
 interface IdeaDetailProps {
   idea: BusinessIdea | null;
@@ -35,6 +36,20 @@ const TEMPLATE_CATEGORIES = [
       { id: 'ad-creatives', title: 'Ad Creatives', description: 'High-converting ad copy and creative concepts', icon: <Megaphone size={18}/> },
       { id: 'brand-package', title: 'Brand Package', description: 'Complete brand identity with logo, colors, and voice', icon: <Flag size={18}/> },
       { id: 'landing-page', title: 'Landing Page', description: 'Copy + wireframe blocks', icon: <Layout size={18}/> },
+    ]
+  },
+  {
+    id: 'design',
+    title: 'Design & Brand',
+    count: '4 templates',
+    description: 'Visual identity and design systems',
+    icon: <Palette size={18} className="text-amber-600" />,
+    bg: 'bg-amber-50',
+    items: [
+      { id: 'logo-prompts', title: 'Logo Generation Prompts', description: 'AI Prompts for Midjourney & DALL-E', icon: <ImageIcon size={18}/> },
+      { id: 'color-schema', title: 'Color Schema & Typography', description: 'Complete CSS variables & font pairings', icon: <Palette size={18}/> },
+      { id: 'design-brief', title: 'Complete Design Brief', description: 'Comprehensive brief for UI/UX designers', icon: <PenTool size={18}/> },
+      { id: 'brand-voice', title: 'Brand Voice & Messaging', description: 'Tone of voice guidelines and copy examples', icon: <MessageSquare size={18}/> },
     ]
   },
   {
@@ -368,6 +383,103 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
     }
   };
 
+  const generatePortableText = () => {
+    let fullText = generateReportContent();
+
+    fullText += `\n\n========================================================================\n\n# AI PROMPTS DIRECTORY (DEEP DIVES & TEMPLATES)\n\n`;
+    fullText += `(Copy and paste these prompts into ChatGPT, Claude, or Gemini to execute on this business idea.)\n\n`;
+
+    // Add deep dive prompts
+    fullText += `## === DEEP DIVE ANALYSES ===\n\n`;
+    const deepDives = [
+      { id: 'whyNow', title: 'Why Now & Market Timing' },
+      { id: 'proofAndSignals', title: 'Proof & Market Signals' },
+      { id: 'marketGap', title: 'Market Gap Analysis' },
+      { id: 'executionPlan', title: '90-Day Execution Plan' },
+      { id: 'revenuePotential', title: 'Revenue & Business Model' },
+      { id: 'executionDifficulty', title: 'Technical & Operational Challenges' },
+      { id: 'goToMarket', title: 'Go-To-Market Strategy' },
+      { id: 'communitySignals', title: 'Community Signals & Social Listening' }
+    ];
+
+    deepDives.forEach(dd => {
+      let prompt = `Provide a detailed deep dive analysis for the "${dd.id}" of the business idea "${editedIdea.title}".\n\nBusiness Description:\n${editedIdea.description}\n\nUse Google Search for the latest signals to validate and expand upon this specific business concept.`;
+      fullText += `### [PROMPT] Deep Dive: ${dd.title}\n`;
+      fullText += `${prompt}\n\n`;
+      fullText += `------------------------------------------------------------------------\n\n`;
+    });
+
+    TEMPLATE_CATEGORIES.forEach(category => {
+      fullText += `\n## === ${category.title.toUpperCase()} TEMPLATES ===\n\n`;
+      category.items.forEach(item => {
+        let basePrompt = `Generate a robust ${item.title} for the business idea "${editedIdea.title}".\n\nBusiness Description:\n${editedIdea.description}\n\nTarget Audience / Tags: ${editedIdea.tags.join(', ')}\n\nFocus on high-quality, actionable advice that is specifically tailored to this exact business concept. Do not make generic assumptions.`;
+        
+        if (item.id === 'coding-prompts') {
+          basePrompt += `\n\nSpecifically, create a comprehensive "Master System Prompt" and coding agent prompts (for tools like Cursor, Windsurf, or Bolt) that a developer can use to build this exact application. Include architecture, tech stack recommendations, and step-by-step implementation prompts.`;
+        }
+
+        fullText += `### [PROMPT] ${item.title}\n`;
+        fullText += `*${item.description}*\n\n`;
+        fullText += `${basePrompt}\n\n`;
+        fullText += `------------------------------------------------------------------------\n\n`;
+      });
+    });
+    
+    return fullText;
+  };
+
+  const handleExportPortableText = () => {
+    const fullText = generatePortableText();
+    const blob = new Blob([fullText], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${editedIdea.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_portable_export.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPortablePDF = () => {
+    const fullText = generatePortableText();
+    const doc = new jsPDF();
+    const margin = 15;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const maxWidth = pageWidth - margin * 2;
+    const lineHeight = 6;
+    let y = margin;
+    
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    
+    const paragraphs = fullText.split('\\n');
+    paragraphs.forEach(para => {
+        // Handle empty lines gracefully
+        if (para.trim() === '') {
+            if (y + lineHeight > pageHeight - margin) {
+                doc.addPage();
+                y = margin;
+            }
+            y += lineHeight;
+            return;
+        }
+
+        const lines = doc.splitTextToSize(para, maxWidth);
+        lines.forEach((line: string) => {
+            if (y + lineHeight > pageHeight - margin) {
+                doc.addPage();
+                y = margin;
+            }
+            doc.text(line, margin, y);
+            y += lineHeight;
+        });
+    });
+    
+    doc.save(`${editedIdea.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_portable_export.pdf`);
+  };
+
   const handleDownloadDossier = () => {
     const reportContent = generateReportContent();
     const blob = new Blob([reportContent], { type: 'text/markdown' });
@@ -379,6 +491,46 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  };
+
+  const handleDownloadEverything = async () => {
+    setActiveModal('content');
+    setIsGenerating(true);
+    setModalContent({ title: 'Generating Complete Master Dossier...', content: 'Compiling ALL research and templates (this may take 1-2 minutes)...' });
+    
+    try {
+      let fullReport = generateReportContent() + "\n\n========================================================================\n\n# EXTENDED TEMPLATES & ARTIFACTS\n\n";
+      
+      const allItems = TEMPLATE_CATEGORIES.flatMap(cat => cat.items.map(item => ({...item, category: cat.title})));
+      
+      const batchSize = 3;
+      
+      for (let i = 0; i < allItems.length; i += batchSize) {
+        const batch = allItems.slice(i, i + batchSize);
+        setModalContent({ title: 'Generating Complete Master Dossier...', content: `Generating artifacts ${i + 1} to ${Math.min(i + batchSize, allItems.length)} of ${allItems.length}...` });
+        
+        const results = await Promise.all(batch.map(item => generateArtifact(editedIdea, item.id)));
+        
+        batch.forEach((item, index) => {
+           fullReport += `## [${item.category}] ${item.title}\n\n${results[index]}\n\n---\n\n`;
+        });
+      }
+      
+      const blob = new Blob([fullReport], { type: 'text/markdown' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${editedIdea.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_COMPLETE_MASTER_DOSSIER.md`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      setActiveModal(null);
+    } catch (e) {
+      setModalContent({ title: 'Error', content: 'Failed to generate complete dossier.' });
+      setIsGenerating(false);
+    }
   };
 
   const handleSendMessage = async () => {
@@ -554,9 +706,11 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
                         className="w-full h-48 text-lg text-slate-700 leading-relaxed p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none resize-none"
                      />
                  ) : (
-                     <p className="text-xl text-slate-700 leading-relaxed">
-                        {editedIdea.description}
-                     </p>
+                     <div className="text-xl text-slate-700 leading-relaxed space-y-4">
+                        {editedIdea.description.split(/(?:\r?\n|\\n)+/).map((paragraph, idx) => (
+                           paragraph.trim() ? <p key={idx}>{paragraph}</p> : null
+                        ))}
+                     </div>
                  )}
               </div>
 
@@ -911,7 +1065,31 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
               </div>
 
               {/* Download Full Dossier Button */}
-              <div className="mt-8 pt-6 border-t border-slate-100">
+              <div className="mt-8 pt-6 border-t border-slate-100 flex flex-col gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <button 
+                          onClick={handleExportPortableText}
+                          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all group"
+                      >
+                          <FileText size={20} className="text-emerald-200 group-hover:text-white transition-colors" />
+                          <div>
+                              <div className="leading-none text-left">Export Prompts (TXT)</div>
+                              <div className="text-xs font-normal text-emerald-100 mt-1 opacity-90 text-left">Dossier + AI Prompts</div>
+                          </div>
+                      </button>
+                      
+                      <button 
+                          onClick={handleExportPortablePDF}
+                          className="w-full bg-red-600 hover:bg-red-700 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all group"
+                      >
+                          <FileDown size={20} className="text-red-200 group-hover:text-white transition-colors" />
+                          <div>
+                              <div className="leading-none text-left">Export Prompts (PDF)</div>
+                              <div className="text-xs font-normal text-red-100 mt-1 opacity-90 text-left">Dossier + AI Prompts</div>
+                          </div>
+                      </button>
+                  </div>
+
                   <button 
                       onClick={handleDownloadDossier}
                       className="w-full bg-slate-800 hover:bg-slate-900 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all group"
@@ -920,6 +1098,16 @@ ${sources && sources.length > 0 ? sources.map(s => `* [${s.title}](${s.uri})`).j
                       <div>
                           <div className="leading-none">Download Research Dossier</div>
                           <div className="text-xs font-normal text-slate-400 mt-1 opacity-80">Includes Strategy, KPIs, & Full Analysis</div>
+                      </div>
+                  </button>
+                  <button 
+                      onClick={handleDownloadEverything}
+                      className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white py-4 rounded-xl font-bold text-base flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all group border border-indigo-400/50"
+                  >
+                      <Download size={20} className="text-blue-200 group-hover:text-white transition-colors animate-pulse" />
+                      <div>
+                          <div className="leading-none">Generate & Download Master Dossier (EVERYTHING)</div>
+                          <div className="text-xs font-normal text-indigo-200 mt-1 opacity-90">Uses AI to generate ALL templates (Takes 1-2 mins)</div>
                       </div>
                   </button>
               </div>

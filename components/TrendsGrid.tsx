@@ -1,18 +1,58 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { AreaChart, Area, ResponsiveContainer } from 'recharts';
 import { MOCK_TRENDS } from '../constants';
+import { MarketTrend } from '../types';
+import { getDailyTrends } from '../services/trendService';
+import { Loader2, RefreshCw } from 'lucide-react';
 
 export const TrendsGrid: React.FC = () => {
+  const [trends, setTrends] = useState<MarketTrend[]>(MOCK_TRENDS);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTrends = async (forceRefresh = false) => {
+      setIsLoading(true);
+      setError(null);
+      try {
+          const liveTrends = await getDailyTrends(forceRefresh);
+          if (liveTrends && liveTrends.length > 0) {
+              setTrends(liveTrends);
+          }
+      } catch (err) {
+          console.error("Failed to load live trends", err);
+          setError("Failed to update trends. Showing latest cached or default trends.");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  useEffect(() => {
+      loadTrends();
+  }, []);
+
   return (
     <section className="py-16 bg-slate-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="text-center mb-12">
-                <h2 className="text-4xl font-serif text-blue-500 mb-2">Trends</h2>
-                <p className="text-slate-500">Discover emerging trends and opportunities</p>
+                <div className="flex items-center justify-center gap-3">
+                   <h2 className="text-4xl font-serif text-blue-500 mb-2">Daily Trends</h2>
+                   {isLoading && <Loader2 size={24} className="text-blue-500 animate-spin" />}
+                </div>
+                <p className="text-slate-500">Live AI-analyzed emerging market opportunities</p>
+                {error && <p className="text-amber-600 text-sm mt-2">{error}</p>}
+                
+                <button 
+                  onClick={() => loadTrends(true)}
+                  disabled={isLoading}
+                  className="mt-4 flex items-center gap-2 mx-auto text-sm text-blue-600 hover:text-blue-800 transition-colors bg-blue-50 px-3 py-1.5 rounded-full"
+                >
+                    <RefreshCw size={14} className={isLoading ? "animate-spin" : ""} />
+                    {isLoading ? "Analyzing..." : "Refresh Live Trends"}
+                </button>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-                {MOCK_TRENDS.map((trend, index) => (
+                {trends.map((trend, index) => (
                     <div key={index} className="bg-white rounded-xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
                         <div className="mb-4">
                             <h3 className="font-bold text-slate-800 mb-1">{trend.title}</h3>

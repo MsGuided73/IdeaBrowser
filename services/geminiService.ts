@@ -2,6 +2,7 @@
 // Fix: Use the correct imports and follow SDK guidelines for model selection and initialization.
 import { GoogleGenAI, Chat, Part, FunctionDeclaration, Type, Schema, GenerateContentResponse } from '@google/genai';
 import { BusinessIdea } from '../types';
+import { getDailyTrends } from './trendService';
 
 // Fix: Always use process.env.API_KEY directly in the initialization.
 // Recommendation: Avoid global instances if multiple keys might be used, but for basic usage this is standard.
@@ -202,7 +203,7 @@ const hydrateIdea = (parsedIdea: Partial<BusinessIdea>, sources: any[]): Busines
 }
 
 export const analyzeEmergingTrends = async (onProgress?: (status: string) => void): Promise<string> => {
-  const modelId = 'gemini-3-pro-preview';
+  const modelId = 'gemini-3.1-pro-preview';
   
   if (onProgress) onProgress("Scanning global data sources (Trends, News, Social)...");
 
@@ -234,7 +235,7 @@ export const analyzeEmergingTrends = async (onProgress?: (status: string) => voi
 };
 
 export const generateBusinessIdea = async (onProgress?: (status: string) => void): Promise<BusinessIdea> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
 
   const today = new Date().toLocaleDateString('en-US', {
     weekday: 'long',
@@ -243,15 +244,23 @@ export const generateBusinessIdea = async (onProgress?: (status: string) => void
     day: 'numeric',
   });
 
-  // Step 1: Advanced Trend Analysis
-  const trendReport = await analyzeEmergingTrends(onProgress);
+  // Step 1: Advanced Trend Analysis using the new service
+  let trendReport = "";
+  try {
+      if (onProgress) onProgress("Retrieving daily business trends...");
+      const trends = await getDailyTrends();
+      trendReport = JSON.stringify(trends, null, 2);
+  } catch (err) {
+      console.warn("Could not fetch daily trends, falling back to general generation.", err);
+      trendReport = "Use your knowledge of current tech and business to generate an idea.";
+  }
 
   if (onProgress) onProgress("Synthesizing data-driven business idea...");
 
   const prompt = `
     Act as a world-class venture capitalist and trend analyst. Today is ${today}.
     
-    Here is the latest Trend Intelligence Report pulled from multiple sources (Search, Social, News):
+    Here is the latest Trend Intelligence Report pulled from our Daily Trends Module:
     ${trendReport}
     
     1. Select the most promising breakout business trend or rising problem from the report above.
@@ -290,7 +299,7 @@ export const generateBusinessIdea = async (onProgress?: (status: string) => void
 };
 
 export const analyzeUserIdea = async (userDescription: string, media?: { data: string, mimeType: string }): Promise<BusinessIdea> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
 
   const prompt = `
     Act as a VC expert. Analyze the following idea concept: "${userDescription}"
@@ -334,7 +343,7 @@ export const analyzeUserIdea = async (userDescription: string, media?: { data: s
 };
 
 export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
   
   const systemInstruction = `
     You are an expert Business Consultant. You are discussing "${idea.title}".
@@ -353,7 +362,7 @@ export const createIdeaChatSession = (idea: BusinessIdea): Chat => {
 };
 
 export const forkIdea = async (originalIdea: BusinessIdea, chatHistory: {role: string, text: string}[]): Promise<BusinessIdea> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
 
   const historyText = chatHistory.map(msg => `${msg.role.toUpperCase()}: ${msg.text}`).join('\n\n');
 
@@ -400,7 +409,7 @@ export const forkIdea = async (originalIdea: BusinessIdea, chatHistory: {role: s
 };
 
 export const generateArtifact = async (idea: BusinessIdea, type: string): Promise<string> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
   let prompt = `Generate a robust ${type} for the business idea "${idea.title}".
   
 Business Description:
@@ -418,6 +427,7 @@ Focus on high-quality, actionable advice that is specifically tailored to this e
     const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
         model: modelId,
         contents: prompt,
+        config: { tools: [{ googleSearch: {} }] }
     }));
     return response.text || "Analysis failed.";
   } catch (e) {
@@ -427,7 +437,7 @@ Focus on high-quality, actionable advice that is specifically tailored to this e
 };
 
 export const generateSectionDeepDive = async (idea: BusinessIdea, section: string): Promise<string> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
   const prompt = `Provide a detailed deep dive analysis for the "${section}" of the business idea "${idea.title}".
   
 Business Description:
@@ -449,7 +459,7 @@ Use Google Search for the latest signals to validate and expand upon this specif
 };
 
 export const generateFullAnalysis = async (idea: BusinessIdea): Promise<string> => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
   const prompt = `Create a comprehensive Investment Memo and Deep Dive Report for the business idea: "${idea.title}".
   
 Business Description:
@@ -471,7 +481,7 @@ Use search for validation and provide specific, relevant insights for this exact
 };
 
 export const createWhiteboardChatSession = (nodes: any[]): Chat => {
-  const modelId = 'gemini-3-flash-preview';
+  const modelId = 'gemini-3.5-flash';
 
   const systemInstruction = `
     You are an AI Creative Partner on a digital whiteboard.

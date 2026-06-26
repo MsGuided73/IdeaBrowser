@@ -7,9 +7,10 @@ import { TrendsGrid } from './components/TrendsGrid';
 import { MyIdeas } from './components/MyIdeas';
 import { IdeaGenerator } from './components/IdeaGenerator';
 import { IdeaHistory } from './components/IdeaHistory';
+import { IdeaDatabasePreview } from './components/IdeaDatabasePreview';
 import { Sparkles } from 'lucide-react';
 import { GOLF_IDEA } from './constants';
-import { generateBusinessIdea } from './services/geminiService';
+import { generateBusinessIdea, analyzeUserIdea } from './services/geminiService';
 import { BusinessIdea, ViewState } from './types';
 
 const App: React.FC = () => {
@@ -51,6 +52,31 @@ const App: React.FC = () => {
   }, [ideaHistory]);
 
   const initialized = useRef(false);
+
+  const handleAnalyzeUserIdea = async (title: string) => {
+    if (!process.env.API_KEY) {
+       alert("Please set your Gemini API Key in the environment variables to use this feature.");
+       return;
+    }
+
+    setLoading(true);
+    setLoadingStatus(`Compiling full dossier for "${title}"...`);
+    setError(null);
+    setCurrentView('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    try {
+      const newIdea = await analyzeUserIdea(title);
+      setCurrentIdea(newIdea);
+      setIdeaHistory(prev => [newIdea, ...prev]);
+    } catch (err) {
+      setError("Failed to analyze idea. Please try again.");
+      console.error(err);
+    } finally {
+      setLoading(false);
+      setLoadingStatus(null);
+    }
+  };
 
   const handleGenerateIdea = async () => {
     if (!process.env.API_KEY) {
@@ -155,22 +181,10 @@ const App: React.FC = () => {
               isSaved={currentIdea ? myIdeas.some(i => i.id === currentIdea.id) : false}
             />
             
-            <section className="py-16 bg-white border-t border-slate-100">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center mb-12">
-                    <h2 className="text-4xl font-serif text-blue-500 mb-2">The Idea Database</h2>
-                    <p className="text-slate-500">Dive into deep research on 700+ business ideas</p>
-                </div>
-                
-                {/* Placeholder Grid for Database */}
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-6 opacity-50 pointer-events-none">
-                    {[1,2,3,4].map(i => (
-                        <div key={i} className="h-48 bg-slate-50 rounded-xl border border-slate-100"></div>
-                    ))}
-                </div>
-                <div className="text-center mt-8">
-                    <button className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-medium">Browse more ideas -&gt;</button>
-                </div>
-            </section>
+            <IdeaDatabasePreview 
+              onBrowseMore={() => alert("Redirecting to full database...")} 
+              onSelectIdea={handleAnalyzeUserIdea}
+            />
 
             <TrendsGrid />
           </>
