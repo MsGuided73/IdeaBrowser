@@ -62,13 +62,49 @@ export const getDailyTrends = async (forceRefresh = false): Promise<MarketTrend[
                 tools: [{ googleSearch: {} }],
                 temperature: 0.7,
                 responseMimeType: "application/json",
+                responseSchema: {
+                  type: "object" as const,
+                  properties: {
+                    trends: {
+                      type: "array" as const,
+                      items: {
+                        type: "object" as const,
+                        properties: {
+                          title: { type: "string" as const },
+                          volume: { type: "string" as const },
+                          growth: { type: "string" as const },
+                          description: { type: "string" as const },
+                          data: {
+                            type: "array" as const,
+                            items: {
+                              type: "object" as const,
+                              properties: {
+                                date: { type: "string" as const },
+                                value: { type: "number" as const }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
             }
         });
 
-        const text = response.text;
+        let text = response.text;
         if (!text) throw new Error("No response from AI");
 
-        const data = JSON.parse(text);
+        // Clean up markdown block if the model included it
+        text = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '').trim();
+
+        let data;
+        try {
+            data = JSON.parse(text);
+        } catch (parseError) {
+            console.error("JSON parse error:", parseError, "Raw text:", text);
+            throw new Error(`Failed to parse AI response: ${parseError instanceof Error ? parseError.message : String(parseError)}`);
+        }
         
         if (data.trends && data.trends.length > 0) {
             localStorage.setItem(CACHE_KEY, JSON.stringify({
